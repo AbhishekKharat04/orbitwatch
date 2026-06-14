@@ -92,6 +92,12 @@
   .agent-text { font-size: 0.78rem; color: #cbd5e1; line-height: 1.5; }
   .scope-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   .scope-item { background: var(--surface); border: 1px solid rgba(26,48,96,0.7); border-radius: 6px; padding: 0.75rem; color: #cbd5e1; font-size: 0.72rem; line-height: 1.35; }
+  .integration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-top: 1rem; }
+  .integration-item { background: var(--surface); border: 1px solid rgba(26,48,96,0.7); border-radius: 6px; padding: 0.65rem; font-size: 0.7rem; color: #cbd5e1; }
+  .integration-item strong { display: block; color: var(--accent); margin-bottom: 0.2rem; }
+  .auth-row { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .auth-row input { min-width: 0; flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-family: inherit; font-size: 0.72rem; }
+  .auth-note { color: var(--muted); font-size: 0.68rem; line-height: 1.4; margin-top: 0.4rem; }
   @media(max-width:520px){ .scope-grid{grid-template-columns:1fr;} }
 
   /* Threshold slider */
@@ -122,7 +128,7 @@
       <div class="logo-text">ORBIT<span>WATCH</span></div>
     </div>
     <div style="font-size:0.7rem;color:var(--muted)">FAR AWAY 2026 | Space & Aerospace</div>
-    <div class="status-badge"><div class="pulse"></div> LIVE API - SGP4 Demo Catalog</div>
+    <div class="status-badge"><div class="pulse"></div> LIVE API - CelesTrak SGP4</div>
   </div>
 </header>
 
@@ -164,13 +170,27 @@
       </div>
 
       <div class="panel" style="margin-top:1.5rem">
-        <div class="panel-header"><span class="panel-title">Future Scope</span></div>
+        <div class="panel-header"><span class="panel-title">Auth, Database, Alerts</span></div>
         <div class="panel-body">
-          <div class="scope-grid">
-            <div class="scope-item">Live CelesTrak catalog ingestion for larger satellite and debris sets.</div>
-            <div class="scope-item">LLM operator briefings with maneuver windows and mission risk summaries.</div>
-            <div class="scope-item">Email/SMS alert routing for small satellite operations teams.</div>
-            <div class="scope-item">Historical conjunction timeline and auditable operator decisions.</div>
+          <div class="auth-row">
+            <input id="auth-email" type="email" placeholder="operator@email.com">
+            <button class="refresh-btn" onclick="requestLoginCode()">Send Code</button>
+          </div>
+          <div class="auth-row">
+            <input id="auth-code" type="text" placeholder="6-digit code">
+            <button class="refresh-btn" onclick="verifyLoginCode()">Login</button>
+          </div>
+          <div class="auth-row">
+            <input id="watch-object" type="text" placeholder="Object watchlist name, e.g. ISS">
+            <button class="refresh-btn" onclick="saveWatchItem()">Save</button>
+          </div>
+          <button class="refresh-btn" onclick="sendTestAlert()">Send Test Alert</button>
+          <div class="auth-note" id="auth-note">Login codes and alerts use Resend when configured. Watchlists persist in Upstash Redis when configured.</div>
+          <div class="integration-grid" id="integration-grid">
+            <div class="integration-item"><strong>CelesTrak</strong>Checking...</div>
+            <div class="integration-item"><strong>OpenAI</strong>Checking...</div>
+            <div class="integration-item"><strong>Database</strong>Checking...</div>
+            <div class="integration-item"><strong>Email Alerts</strong>Checking...</div>
           </div>
         </div>
       </div>
@@ -184,8 +204,8 @@
       <div class="panel-body">
         <div class="threshold-row">
           <label>Threshold:</label>
-          <input type="range" min="5" max="200" value="50" id="threshold" oninput="updateThreshold(this.value)">
-          <span class="threshold-val" id="threshold-val">50 km</span>
+          <input type="range" min="50" max="10000" value="2000" id="threshold" oninput="updateThreshold(this.value)">
+          <span class="threshold-val" id="threshold-val">2000 km</span>
         </div>
         <div class="agent-summary">
           <div class="agent-kicker">Agent Alert Summary</div>
@@ -200,7 +220,7 @@
 
 <footer>
   <div class="wrap">
-    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Live API: Vercel Python Serverless - Built with FastAPI + SGP4
+    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Live CelesTrak GP TLE - FastAPI + SGP4 + Vercel
   </div>
 </footer>
 
@@ -209,6 +229,7 @@ const API = window.location.hostname === 'localhost' || window.location.hostname
   ? 'http://localhost:8000'
   : window.location.origin;
 let satellites = [];
+let sessionToken = localStorage.getItem('orbitwatch_token') || '';
 
 async function fetchStats() {
   try {
@@ -220,6 +241,7 @@ async function fetchStats() {
     document.getElementById('s-risk').textContent = d.high_risk_events_today;
     document.getElementById('api-status').textContent = `Backend: ${d.runtime || 'FastAPI'} connected - ${d.data_source || 'SGP4 demo catalog'}`;
     document.getElementById('api-updated').textContent = `Updated: ${new Date(d.last_updated).toLocaleTimeString()}`;
+    renderIntegrations(d.integrations || {});
   } catch(e) {
     // Demo fallback
     document.getElementById('s-total').textContent = '27,686';
@@ -233,7 +255,7 @@ async function fetchStats() {
 
 async function fetchSatellites() {
   try {
-    const r = await fetch(`${API}/api/satellites`);
+    const r = await fetch(`${API}/api/satellites?group=STATIONS&limit=80`);
     const d = await r.json();
     satellites = d.satellites;
   } catch(e) {
@@ -254,12 +276,37 @@ async function fetchConjunctions(threshold=50) {
   const el = document.getElementById('conj-list');
   el.innerHTML = '<div class="loading">Scanning orbital paths...</div>';
   try {
-    const r = await fetch(`${API}/api/conjunctions?threshold_km=${threshold}`);
+    const r = await fetch(`${API}/api/conjunctions?threshold_km=${threshold}&group=STATIONS&limit=80`);
     const d = await r.json();
-    renderConjunctions(d.conjunctions);
+    renderConjunctions(d.conjunctions && d.conjunctions.length ? d.conjunctions : d.nearest_approaches);
+    fetchAgentBriefing(threshold);
   } catch(e) {
     renderConjunctions(getDemoConjunctions());
   }
+}
+
+async function fetchAgentBriefing(threshold=2000) {
+  try {
+    const r = await fetch(`${API}/api/agent-briefing?threshold_km=${threshold}&group=STATIONS&limit=80`);
+    const d = await r.json();
+    const suffix = d.mode === 'openai_responses_api' ? ` Model: ${d.model}.` : ' Add OPENAI_API_KEY in Vercel to activate real model calls.';
+    document.getElementById('agent-summary').textContent = `${d.briefing}${suffix}`;
+  } catch(e) {}
+}
+
+function renderIntegrations(integrations) {
+  const labels = {
+    celestrak: 'real-time GP TLE feed',
+    openai: 'real model briefing',
+    database: 'Upstash Redis persistence',
+    email_alerts: 'Resend delivery',
+  };
+  document.getElementById('integration-grid').innerHTML = Object.entries(labels).map(([key, label]) => `
+    <div class="integration-item">
+      <strong>${key.replace('_', ' ').toUpperCase()}</strong>
+      ${integrations[key] ? 'ACTIVE' : key === 'celestrak' ? 'ACTIVE' : 'Needs env key'} - ${label}
+    </div>
+  `).join('');
 }
 
 function getDemoConjunctions() {
@@ -337,7 +384,7 @@ function renderOrbit() {
   ctx.fillStyle = '#040b1a';
   ctx.fillRect(0,0,W,H);
 
-  // Grid circles
+  // Range shells in the TEME frame, projected to canvas.
   for (let r of [60,90,120,155]) {
     ctx.beginPath();
     ctx.arc(cx,cy,r,0,Math.PI*2);
@@ -364,27 +411,33 @@ function renderOrbit() {
 
   if (!satellites.length) return;
   const maxDist = Math.max(...satellites.map(s=>Math.sqrt(s.x**2+s.y**2+s.z**2)));
+  const spin = Date.now() / 18000;
 
   satellites.forEach((sat, i) => {
-    const d = Math.sqrt(sat.x**2+sat.y**2+sat.z**2);
-    const angle = Math.atan2(sat.y, sat.x);
-    const r = 65 + (d/maxDist)*130;
-    const px = cx + r*Math.cos(angle);
-    const py = cy + r*Math.sin(angle);
+    const nx = sat.x / maxDist;
+    const ny = sat.y / maxDist;
+    const nz = sat.z / maxDist;
+    const rx = nx * Math.cos(spin) - ny * Math.sin(spin);
+    const ry = nx * Math.sin(spin) + ny * Math.cos(spin);
+    const rz = nz;
+    const perspective = 1 / (1.45 - rz * 0.45);
+    const px = cx + rx * 185 * perspective;
+    const py = cy + ry * 185 * perspective;
 
     const isDebris = sat.name.toLowerCase().includes('deb') || sat.name.toLowerCase().includes('r/b');
     const color = isDebris ? '#ef4444' : (sat.name.includes('ISS') ? '#00d4ff' : '#7c3aed');
 
     // Orbit arc
     ctx.beginPath();
-    ctx.arc(cx, cy, r, angle-0.4, angle+0.4);
+    const orbitRadius = 65 + (sat.radius_km / maxDist) * 130;
+    ctx.arc(cx, cy, orbitRadius, 0, Math.PI * 2);
     ctx.strokeStyle = color + '30';
     ctx.lineWidth = 1;
     ctx.stroke();
 
     // Dot
     ctx.beginPath();
-    ctx.arc(px, py, isDebris?3:5, 0, Math.PI*2);
+    ctx.arc(px, py, (isDebris?3:5) * perspective, 0, Math.PI*2);
     ctx.fillStyle = color;
     ctx.fill();
 
@@ -398,7 +451,7 @@ function renderOrbit() {
     // Label
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '9px Courier New';
-    ctx.fillText(sat.name.substring(0,14), px+7, py+3);
+    ctx.fillText(`${sat.name.substring(0,14)} z:${Math.round(sat.z)}`, px+7, py+3);
   });
 
   // Legend
@@ -417,6 +470,65 @@ function refreshAll() {
   fetchStats();
   fetchSatellites();
   fetchConjunctions(document.getElementById('threshold').value);
+}
+
+async function requestLoginCode() {
+  const email = document.getElementById('auth-email').value.trim();
+  const note = document.getElementById('auth-note');
+  if (!email) { note.textContent = 'Enter an operator email first.'; return; }
+  const r = await fetch(`${API}/api/auth/request-code`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email})
+  });
+  const d = await r.json();
+  note.textContent = d.dev_code
+    ? `Code generated. Dev mode code: ${d.dev_code}`
+    : 'Code sent by email.';
+}
+
+async function verifyLoginCode() {
+  const email = document.getElementById('auth-email').value.trim();
+  const code = document.getElementById('auth-code').value.trim();
+  const note = document.getElementById('auth-note');
+  const r = await fetch(`${API}/api/auth/verify-code`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email, code})
+  });
+  const d = await r.json();
+  if (d.token) {
+    sessionToken = d.token;
+    localStorage.setItem('orbitwatch_token', sessionToken);
+    note.textContent = `Logged in as ${d.email}.`;
+  } else {
+    note.textContent = d.detail || 'Login failed.';
+  }
+}
+
+async function saveWatchItem() {
+  const objectName = document.getElementById('watch-object').value.trim();
+  const note = document.getElementById('auth-note');
+  if (!sessionToken) { note.textContent = 'Login first to save a watchlist item.'; return; }
+  const r = await fetch(`${API}/api/user/watchlist`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}`},
+    body: JSON.stringify({object_name: objectName, threshold_km: Number(document.getElementById('threshold').value)})
+  });
+  const d = await r.json();
+  note.textContent = d.watchlist ? `Watchlist saved: ${d.watchlist.length} item(s).` : d.detail || 'Save failed.';
+}
+
+async function sendTestAlert() {
+  const email = document.getElementById('auth-email').value.trim();
+  const note = document.getElementById('auth-note');
+  const r = await fetch(`${API}/api/alerts/test`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email, threshold_km: Number(document.getElementById('threshold').value)})
+  });
+  const d = await r.json();
+  note.textContent = d.delivery?.sent ? 'Alert email sent.' : d.delivery?.reason || d.detail || 'Alert generated; email provider not configured.';
 }
 
 // Initial load

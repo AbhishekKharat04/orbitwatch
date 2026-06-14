@@ -11,6 +11,7 @@ OrbitWatch monitors satellite conjunction risk from Two-Line Element (TLE) orbit
 - Live API stats: <https://orbitwatch-five.vercel.app/api/stats>
 - Live satellite positions: <https://orbitwatch-five.vercel.app/api/satellites>
 - Live conjunction scan: <https://orbitwatch-five.vercel.app/api/conjunctions?threshold_km=10000>
+- Live AI briefing endpoint: <https://orbitwatch-five.vercel.app/api/agent-briefing>
 - GitHub repository: <https://github.com/AbhishekKharat04/orbitwatch>
 
 ## Why It Matters
@@ -40,7 +41,11 @@ TLE catalog -> SGP4 propagation -> proximity engine -> risk scoring
 - Conjunction detection with configurable distance thresholds.
 - Risk scoring: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 - Actionable alert text with maneuver guidance.
-- Hosted dashboard with live Vercel Python serverless API integration and demo fallback data.
+- Hosted dashboard with live Vercel Python serverless API integration.
+- Real-time CelesTrak GP/TLE ingestion for the stations catalog, with fallback demo data if the upstream feed is unavailable.
+- OpenAI Responses API operator briefings when `OPENAI_API_KEY` is configured.
+- Email-code auth workflow, watchlist storage hooks, and alert email delivery when Upstash Redis and Resend keys are configured.
+- 3D TEME-frame orbit visualization using live SGP4 x/y/z coordinates.
 - FastAPI documentation at `/docs`.
 
 ## Tech Stack
@@ -50,6 +55,10 @@ TLE catalog -> SGP4 propagation -> proximity engine -> risk scoring
 | Backend | Python, FastAPI |
 | Hosted API | Vercel Python Serverless Functions |
 | Orbital Mechanics | sgp4 |
+| Live Orbital Data | CelesTrak GP TLE endpoint |
+| AI Briefing | OpenAI Responses API |
+| Auth / Database | Email code flow + Upstash Redis REST |
+| Alert Delivery | Resend email API |
 | Frontend | HTML, CSS, JavaScript |
 | API Docs | OpenAPI / Swagger UI |
 | Submission Material | PowerPoint deck |
@@ -87,10 +96,29 @@ Then open <http://localhost:3000>.
 | --- | --- |
 | `GET /` | Service status |
 | `GET /api/stats` | OrbitWatch summary metrics |
-| `GET /api/satellites` | Current propagated demo satellite positions |
+| `GET /api/satellites` | Current SGP4-propagated CelesTrak satellite positions |
 | `GET /api/conjunctions?threshold_km=50` | Detected conjunction events |
+| `GET /api/agent-briefing` | AI/operator briefing; uses OpenAI when configured |
+| `POST /api/auth/request-code` | Request email login code |
+| `POST /api/auth/verify-code` | Verify login code and receive bearer token |
+| `GET/POST /api/user/watchlist` | Read or update authenticated watchlist |
+| `POST /api/alerts/test` | Generate and optionally email a test alert |
 
-The hosted API currently uses a demo TLE catalog to prove the end-to-end SGP4 propagation and conjunction pipeline. Future work expands this to a full live CelesTrak feed.
+The hosted API uses CelesTrak GP data by default. If CelesTrak is unreachable, OrbitWatch falls back to a small demo TLE catalog so the dashboard remains available during upstream outages.
+
+## Production Integrations
+
+Add these environment variables in Vercel to activate the full production workflow:
+
+```env
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4.1-mini
+APP_SECRET=replace-with-a-long-random-secret
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+RESEND_API_KEY=...
+ALERT_FROM_EMAIL=OrbitWatch <verified-sender@example.com>
+```
 
 ## Submission Checklist
 
