@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrbitWatch - Space Debris Intelligence</title>
+<style>
+  :root {
+    --bg: #040b1a;
+    --surface: #0a1628;
+    --card: #0d1f3c;
+    --border: #1a3060;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --red: #ef4444;
+    --orange: #f97316;
+    --yellow: #eab308;
+    --green: #22c55e;
+    --text: #e2e8f0;
+    --muted: #64748b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; min-height: 100vh; }
+
+  /* Stars background */
+  body::before {
+    content: '';
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.5) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 65% 40%, rgba(255,255,255,0.5) 0%, transparent 100%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--border); padding: 1rem 0; }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 0.75rem; }
+  .logo-icon { width: 36px; height: 36px; background: radial-gradient(circle, var(--accent), var(--accent2)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-size: 1.4rem; font-weight: bold; letter-spacing: 0.1em; }
+  .logo-text span { color: var(--accent); }
+  .status-badge { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--green); }
+  .pulse { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Stats grid */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1.5rem 0; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
+  .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+  .stat-value { font-size: 2rem; font-weight: bold; color: var(--accent); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.orange { color: var(--orange); }
+  .stat-value.green { color: var(--green); }
+  .stat-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
+
+  /* Main grid */
+  .main-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem; padding-bottom: 2rem; }
+  @media(max-width:768px){ .main-grid{grid-template-columns:1fr;} }
+
+  /* Panel */
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+  .panel-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+  .panel-body { padding: 1rem 1.25rem; }
+
+  /* Orbit vis */
+  #orbit-canvas { width: 100%; aspect-ratio: 1; }
+
+  /* Conjunction list */
+  .conj-item { padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; border: 1px solid var(--border); background: var(--surface); }
+  .conj-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .conj-sats { font-size: 0.8rem; font-weight: bold; }
+  .risk-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 99px; font-weight: bold; }
+  .risk-CRITICAL { background: rgba(239,68,68,0.2); color: var(--red); border: 1px solid var(--red); }
+  .risk-HIGH     { background: rgba(249,115,22,0.2); color: var(--orange); border: 1px solid var(--orange); }
+  .risk-MEDIUM   { background: rgba(234,179,8,0.2); color: var(--yellow); border: 1px solid var(--yellow); }
+  .risk-LOW      { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid var(--green); }
+  .conj-dist { font-size: 0.75rem; color: var(--muted); }
+  .conj-alert { font-size: 0.7rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.4; }
+
+  /* Threshold slider */
+  .threshold-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+  .threshold-row label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  .threshold-val { font-size: 0.85rem; color: var(--accent); min-width: 60px; }
+
+  /* Satellite table */
+  .sat-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .sat-table th { color: var(--muted); text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; }
+  .sat-table td { padding: 0.5rem 0.5rem; border-bottom: 1px solid rgba(26,48,96,0.5); }
+  .sat-table tr:hover td { background: rgba(0,212,255,0.03); }
+
+  .loading { color: var(--muted); font-size: 0.8rem; padding: 1rem; text-align: center; }
+  .refresh-btn { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-family: inherit; }
+  .refresh-btn:hover { background: rgba(0,212,255,0.1); }
+  
+  footer { border-top: 1px solid var(--border); padding: 1rem 0; text-align: center; font-size: 0.7rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap header-inner">
+    <div class="logo">
+      <div class="logo-icon">OW</div>
+      <div class="logo-text">ORBIT<span>WATCH</span></div>
+    </div>
+    <div style="font-size:0.7rem;color:var(--muted)">FAR AWAY 2026 | Space & Aerospace</div>
+    <div class="status-badge"><div class="pulse"></div> LIVE - NORAD/CelesTrak</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Stats -->
+  <div class="stats-grid" id="stats-grid">
+    <div class="stat-card"><div class="stat-label">Tracked Objects</div><div class="stat-value" id="s-total">--</div><div class="stat-sub">satellites + debris</div></div>
+    <div class="stat-card"><div class="stat-label">Active Satellites</div><div class="stat-value green" id="s-active">--</div><div class="stat-sub">operational</div></div>
+    <div class="stat-card"><div class="stat-label">Debris Fragments</div><div class="stat-value orange" id="s-debris">--</div><div class="stat-sub">tracked</div></div>
+    <div class="stat-card"><div class="stat-label">High Risk Today</div><div class="stat-value red" id="s-risk">--</div><div class="stat-sub">conjunction events</div></div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="main-grid">
+
+    <!-- Left: Orbit Visualization -->
+    <div>
+      <div class="panel" style="margin-bottom:1.5rem">
+        <div class="panel-header">
+          <span class="panel-title">Orbital Map (Real-time)</span>
+          <button class="refresh-btn" onclick="refreshAll()">Refresh</button>
+        </div>
+        <div class="panel-body" style="padding:0.5rem">
+          <canvas id="orbit-canvas" width="500" height="500"></canvas>
+        </div>
+      </div>
+
+      <!-- Sat table -->
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Tracked Objects</span></div>
+        <div class="panel-body" style="padding:0.5rem 1rem">
+          <div id="sat-table-wrap"><div class="loading">Loading orbital data...</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Conjunction alerts -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Conjunction Events</span>
+      </div>
+      <div class="panel-body">
+        <div class="threshold-row">
+          <label>Threshold:</label>
+          <input type="range" min="5" max="200" value="50" id="threshold" oninput="updateThreshold(this.value)">
+          <span class="threshold-val" id="threshold-val">50 km</span>
+        </div>
+        <div id="conj-list"><div class="loading">Scanning for conjunctions...</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Data: CelesTrak / NORAD - Built with FastAPI + SGP4
+  </div>
+</footer>
+
+<script>
+const API = 'http://localhost:8000';
+let satellites = [];
+
+async function fetchStats() {
+  try {
+    const r = await fetch(`${API}/api/stats`);
+    const d = await r.json();
+    document.getElementById('s-total').textContent = d.tracked_objects.toLocaleString();
+    document.getElementById('s-active').textContent = d.active_satellites.toLocaleString();
+    document.getElementById('s-debris').textContent = d.debris_fragments.toLocaleString();
+    document.getElementById('s-risk').textContent = d.high_risk_events_today;
+  } catch(e) {
+    // Demo fallback
+    document.getElementById('s-total').textContent = '27,686';
+    document.getElementById('s-active').textContent = '8,963';
+    document.getElementById('s-debris').textContent = '18,723';
+    document.getElementById('s-risk').textContent = '4';
+  }
+}
+
+async function fetchSatellites() {
+  try {
+    const r = await fetch(`${API}/api/satellites`);
+    const d = await r.json();
+    satellites = d.satellites;
+  } catch(e) {
+    satellites = [
+      {name:"ISS (ZARYA)",x:4200,y:-1800,z:4500,alt_km:408},
+      {name:"STARLINK-1234",x:6800,y:200,z:1200,alt_km:550},
+      {name:"DEBRIS-A",x:4210,y:-1820,z:4490,alt_km:407},
+      {name:"COSMOS 2251 DEB",x:3100,y:5200,z:3400,alt_km:811},
+      {name:"FENGYUN 1C DEB",x:-2100,y:5800,z:4200,alt_km:850},
+      {name:"IRIDIUM 33 DEB",x:5100,y:3200,z:4800,alt_km:778},
+    ];
+  }
+  renderOrbit();
+  renderSatTable();
+}
+
+async function fetchConjunctions(threshold=50) {
+  const el = document.getElementById('conj-list');
+  el.innerHTML = '<div class="loading">Scanning orbital paths...</div>';
+  try {
+    const r = await fetch(`${API}/api/conjunctions?threshold_km=${threshold}`);
+    const d = await r.json();
+    renderConjunctions(d.conjunctions);
+  } catch(e) {
+    renderConjunctions(getDemoConjunctions());
+  }
+}
+
+function getDemoConjunctions() {
+  return [
+    {sat1:"ISS (ZARYA)",sat2:"DEBRIS-A",distance_km:0.72,risk_level:"CRITICAL",alert:"CRITICAL: ISS (ZARYA) and DEBRIS-A at 0.72 km. Immediate maneuver required.",sat1_alt:408,sat2_alt:407},
+    {sat1:"STARLINK-1234",sat2:"COSMOS 2251 DEB",distance_km:3.4,risk_level:"HIGH",alert:"HIGH: STARLINK-1234 and COSMOS 2251 DEB at 3.4 km. Maneuver window in about 2 hours.",sat1_alt:550,sat2_alt:540},
+    {sat1:"FENGYUN 1C DEB",sat2:"IRIDIUM 33 DEB",distance_km:14.2,risk_level:"MEDIUM",alert:"MEDIUM: FENGYUN and IRIDIUM 33 DEB at 14.2 km. Monitor closely.",sat1_alt:850,sat2_alt:830},
+    {sat1:"SL-16 R/B",sat2:"METEOR 2-5 DEB",distance_km:38.1,risk_level:"LOW",alert:"LOW: SL-16 and METEOR 2-5 at 38.1 km. No action required.",sat1_alt:900,sat2_alt:880},
+  ];
+}
+
+function renderConjunctions(events) {
+  const el = document.getElementById('conj-list');
+  if (!events || events.length === 0) {
+    el.innerHTML = '<div class="loading" style="color:var(--green)">No conjunctions within threshold</div>';
+    return;
+  }
+  el.innerHTML = events.map(e => `
+    <div class="conj-item">
+      <div class="conj-header">
+        <span class="conj-sats">${e.sat1} -> ${e.sat2}</span>
+        <span class="risk-badge risk-${e.risk_level}">${e.risk_level}</span>
+      </div>
+      <div class="conj-dist">Distance: <strong>${e.distance_km} km</strong> - Alt: ${e.sat1_alt}km / ${e.sat2_alt}km</div>
+      <div class="conj-alert">${e.alert}</div>
+    </div>
+  `).join('');
+}
+
+function renderSatTable() {
+  const wrap = document.getElementById('sat-table-wrap');
+  if (!satellites.length) { wrap.innerHTML = '<div class="loading">No data</div>'; return; }
+  wrap.innerHTML = `<table class="sat-table">
+    <thead><tr><th>Object</th><th>Alt (km)</th><th>X</th><th>Y</th></tr></thead>
+    <tbody>${satellites.map(s=>`
+      <tr>
+        <td>${s.name}</td>
+        <td style="color:var(--accent)">${s.alt_km}</td>
+        <td style="color:var(--muted)">${Math.round(s.x)}</td>
+        <td style="color:var(--muted)">${Math.round(s.y)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderOrbit() {
+  const canvas = document.getElementById('orbit-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2;
+  ctx.clearRect(0,0,W,H);
+
+  // BG
+  ctx.fillStyle = '#040b1a';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid circles
+  for (let r of [60,90,120,155]) {
+    ctx.beginPath();
+    ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(26,48,96,0.5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  // Cross-hairs
+  ctx.strokeStyle = 'rgba(26,48,96,0.3)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(cx,20); ctx.lineTo(cx,H-20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20,cy); ctx.lineTo(W-20,cy); ctx.stroke();
+
+  // Earth
+  const earthGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,52);
+  earthGrad.addColorStop(0,'#1a4fd8');
+  earthGrad.addColorStop(0.7,'#0d3ba8');
+  earthGrad.addColorStop(1,'#081f6b');
+  ctx.beginPath(); ctx.arc(cx,cy,52,0,Math.PI*2);
+  ctx.fillStyle = earthGrad; ctx.fill();
+  ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = 'rgba(34,197,94,0.4)';
+  ctx.beginPath(); ctx.ellipse(cx-12,cy-10,18,10,0.3,0,Math.PI*2); ctx.fill();
+
+  if (!satellites.length) return;
+  const maxDist = Math.max(...satellites.map(s=>Math.sqrt(s.x**2+s.y**2+s.z**2)));
+
+  satellites.forEach((sat, i) => {
+    const d = Math.sqrt(sat.x**2+sat.y**2+sat.z**2);
+    const angle = Math.atan2(sat.y, sat.x);
+    const r = 65 + (d/maxDist)*130;
+    const px = cx + r*Math.cos(angle);
+    const py = cy + r*Math.sin(angle);
+
+    const isDebris = sat.name.toLowerCase().includes('deb') || sat.name.toLowerCase().includes('r/b');
+    const color = isDebris ? '#ef4444' : (sat.name.includes('ISS') ? '#00d4ff' : '#7c3aed');
+
+    // Orbit arc
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, angle-0.4, angle+0.4);
+    ctx.strokeStyle = color + '30';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Dot
+    ctx.beginPath();
+    ctx.arc(px, py, isDebris?3:5, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // Glow
+    const glow = ctx.createRadialGradient(px,py,0,px,py,10);
+    glow.addColorStop(0, color+'60');
+    glow.addColorStop(1,'transparent');
+    ctx.beginPath(); ctx.arc(px,py,10,0,Math.PI*2);
+    ctx.fillStyle = glow; ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '9px Courier New';
+    ctx.fillText(sat.name.substring(0,14), px+7, py+3);
+  });
+
+  // Legend
+  ctx.font = '10px Courier New';
+  ctx.fillStyle = '#00d4ff'; ctx.fillRect(10,H-55,8,8); ctx.fillText('Satellites',22,H-48);
+  ctx.fillStyle = '#ef4444'; ctx.fillRect(10,H-38,8,8); ctx.fillText('Debris',22,H-31);
+  ctx.fillStyle = '#7c3aed'; ctx.fillRect(10,H-21,8,8); ctx.fillText('Other',22,H-14);
+}
+
+function updateThreshold(val) {
+  document.getElementById('threshold-val').textContent = val + ' km';
+  fetchConjunctions(val);
+}
+
+function refreshAll() {
+  fetchStats();
+  fetchSatellites();
+  fetchConjunctions(document.getElementById('threshold').value);
+}
+
+// Initial load
+refreshAll();
+// Auto-refresh every 30s
+setInterval(refreshAll, 30000);
+</script>
+</body>
+</html>
