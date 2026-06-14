@@ -50,6 +50,9 @@
   .pulse { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+  .api-strip { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; background: rgba(13,31,60,0.72); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem; font-size: 0.72rem; color: var(--muted); }
+  .api-pill { color: var(--green); border: 1px solid rgba(34,197,94,0.45); background: rgba(34,197,94,0.08); border-radius: 999px; padding: 0.25rem 0.65rem; }
+
   /* Stats grid */
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1.5rem 0; }
   .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
@@ -84,6 +87,12 @@
   .risk-LOW      { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid var(--green); }
   .conj-dist { font-size: 0.75rem; color: var(--muted); }
   .conj-alert { font-size: 0.7rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.4; }
+  .agent-summary { border: 1px solid rgba(0,212,255,0.35); background: rgba(0,212,255,0.06); border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem; }
+  .agent-kicker { color: var(--accent); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.45rem; }
+  .agent-text { font-size: 0.78rem; color: #cbd5e1; line-height: 1.5; }
+  .scope-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .scope-item { background: var(--surface); border: 1px solid rgba(26,48,96,0.7); border-radius: 6px; padding: 0.75rem; color: #cbd5e1; font-size: 0.72rem; line-height: 1.35; }
+  @media(max-width:520px){ .scope-grid{grid-template-columns:1fr;} }
 
   /* Threshold slider */
   .threshold-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
@@ -113,11 +122,16 @@
       <div class="logo-text">ORBIT<span>WATCH</span></div>
     </div>
     <div style="font-size:0.7rem;color:var(--muted)">FAR AWAY 2026 | Space & Aerospace</div>
-    <div class="status-badge"><div class="pulse"></div> LIVE - NORAD/CelesTrak</div>
+    <div class="status-badge"><div class="pulse"></div> LIVE API - SGP4 Demo Catalog</div>
   </div>
 </header>
 
 <div class="wrap">
+  <div class="api-strip">
+    <span id="api-status">Backend: connecting to Vercel Python Serverless...</span>
+    <span id="api-updated" class="api-pill">Waiting for first API response</span>
+  </div>
+
   <!-- Stats -->
   <div class="stats-grid" id="stats-grid">
     <div class="stat-card"><div class="stat-label">Tracked Objects</div><div class="stat-value" id="s-total">--</div><div class="stat-sub">satellites + debris</div></div>
@@ -148,6 +162,18 @@
           <div id="sat-table-wrap"><div class="loading">Loading orbital data...</div></div>
         </div>
       </div>
+
+      <div class="panel" style="margin-top:1.5rem">
+        <div class="panel-header"><span class="panel-title">Future Scope</span></div>
+        <div class="panel-body">
+          <div class="scope-grid">
+            <div class="scope-item">Live CelesTrak catalog ingestion for larger satellite and debris sets.</div>
+            <div class="scope-item">LLM operator briefings with maneuver windows and mission risk summaries.</div>
+            <div class="scope-item">Email/SMS alert routing for small satellite operations teams.</div>
+            <div class="scope-item">Historical conjunction timeline and auditable operator decisions.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Right: Conjunction alerts -->
@@ -161,6 +187,10 @@
           <input type="range" min="5" max="200" value="50" id="threshold" oninput="updateThreshold(this.value)">
           <span class="threshold-val" id="threshold-val">50 km</span>
         </div>
+        <div class="agent-summary">
+          <div class="agent-kicker">Agent Alert Summary</div>
+          <div class="agent-text" id="agent-summary">Waiting for conjunction scan...</div>
+        </div>
         <div id="conj-list"><div class="loading">Scanning for conjunctions...</div></div>
       </div>
     </div>
@@ -170,7 +200,7 @@
 
 <footer>
   <div class="wrap">
-    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Data: CelesTrak / NORAD - Built with FastAPI + SGP4
+    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Live API: Vercel Python Serverless - Built with FastAPI + SGP4
   </div>
 </footer>
 
@@ -188,12 +218,16 @@ async function fetchStats() {
     document.getElementById('s-active').textContent = d.active_satellites.toLocaleString();
     document.getElementById('s-debris').textContent = d.debris_fragments.toLocaleString();
     document.getElementById('s-risk').textContent = d.high_risk_events_today;
+    document.getElementById('api-status').textContent = `Backend: ${d.runtime || 'FastAPI'} connected - ${d.data_source || 'SGP4 demo catalog'}`;
+    document.getElementById('api-updated').textContent = `Updated: ${new Date(d.last_updated).toLocaleTimeString()}`;
   } catch(e) {
     // Demo fallback
     document.getElementById('s-total').textContent = '27,686';
     document.getElementById('s-active').textContent = '8,963';
     document.getElementById('s-debris').textContent = '18,723';
     document.getElementById('s-risk').textContent = '4';
+    document.getElementById('api-status').textContent = 'Backend: offline fallback mode';
+    document.getElementById('api-updated').textContent = 'Using local demo data';
   }
 }
 
@@ -241,8 +275,10 @@ function renderConjunctions(events) {
   const el = document.getElementById('conj-list');
   if (!events || events.length === 0) {
     el.innerHTML = '<div class="loading" style="color:var(--green)">No conjunctions within threshold</div>';
+    renderAgentSummary([]);
     return;
   }
+  renderAgentSummary(events);
   el.innerHTML = events.map(e => `
     <div class="conj-item">
       <div class="conj-header">
@@ -253,6 +289,26 @@ function renderConjunctions(events) {
       <div class="conj-alert">${e.alert}</div>
     </div>
   `).join('');
+}
+
+function renderAgentSummary(events) {
+  const target = document.getElementById('agent-summary');
+  if (!events || events.length === 0) {
+    target.textContent = 'No conjunctions currently exceed the selected threshold. Continue passive monitoring and refresh the catalog every 30 seconds.';
+    return;
+  }
+
+  const priority = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+  const top = [...events].sort((a, b) => priority[b.risk_level] - priority[a.risk_level] || a.distance_km - b.distance_km)[0];
+  const action = top.risk_level === 'CRITICAL'
+    ? 'Immediate operator review is recommended.'
+    : top.risk_level === 'HIGH'
+      ? 'Prepare a maneuver assessment window.'
+      : top.risk_level === 'MEDIUM'
+        ? 'Continue close monitoring and keep an optional maneuver plan ready.'
+        : 'No maneuver is required; keep tracking.';
+
+  target.textContent = `${top.risk_level} priority: ${top.sat1} and ${top.sat2} are ${top.distance_km} km apart. ${action} OrbitWatch detected ${events.length} event(s) inside the current threshold.`;
 }
 
 function renderSatTable() {
