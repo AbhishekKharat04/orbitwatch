@@ -4,119 +4,165 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OrbitWatch - Space Debris Intelligence</title>
+<!-- Imports Google Fonts: Inter and Orbitron -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #040b1a;
-    --surface: #0a1628;
-    --card: #0d1f3c;
-    --border: #1a3060;
+    --bg: #030712;
+    --surface: rgba(17, 24, 39, 0.7);
+    --card: rgba(31, 41, 55, 0.45);
+    --border: rgba(55, 65, 81, 0.4);
     --accent: #00d4ff;
-    --accent2: #7c3aed;
-    --red: #ef4444;
+    --accent2: #8b5cf6;
+    --red: #f43f5e;
     --orange: #f97316;
     --yellow: #eab308;
-    --green: #22c55e;
-    --text: #e2e8f0;
-    --muted: #64748b;
+    --green: #10b981;
+    --text: #f3f4f6;
+    --muted: #9ca3af;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; min-height: 100vh; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
   /* Stars background */
   body::before {
     content: '';
     position: fixed; top:0; left:0; right:0; bottom:0;
     background-image:
-      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.6) 0%, transparent 100%),
-      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.5) 0%, transparent 100%),
-      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
-      radial-gradient(1px 1px at 35% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
-      radial-gradient(1px 1px at 65% 40%, rgba(255,255,255,0.5) 0%, transparent 100%);
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 50% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.3) 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 90%, rgba(255,255,255,0.2) 0%, transparent 100%),
+      radial-gradient(1px 1px at 65% 40%, rgba(255,255,255,0.3) 0%, transparent 100%);
     pointer-events: none; z-index: 0;
   }
 
-  .wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+  .wrap { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; padding: 0 1.5rem; }
 
   /* Header */
-  header { border-bottom: 1px solid var(--border); padding: 1rem 0; }
+  header { border-bottom: 1px solid var(--border); padding: 1rem 0; background: rgba(3, 7, 18, 0.8); backdrop-filter: blur(8px); }
   .header-inner { display: flex; align-items: center; justify-content: space-between; }
   .logo { display: flex; align-items: center; gap: 0.75rem; }
-  .logo-icon { width: 36px; height: 36px; background: radial-gradient(circle, var(--accent), var(--accent2)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-  .logo-text { font-size: 1.4rem; font-weight: bold; letter-spacing: 0.1em; }
+  .logo-icon { width: 36px; height: 36px; background: radial-gradient(circle, var(--accent), var(--accent2)); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Orbitron', sans-serif; font-size: 16px; font-weight: 900; color: #fff; box-shadow: 0 0 12px rgba(0, 212, 255, 0.4); }
+  .logo-text { font-family: 'Orbitron', sans-serif; font-size: 1.4rem; font-weight: 900; letter-spacing: 0.1em; }
   .logo-text span { color: var(--accent); }
-  .status-badge { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--green); }
+  .status-badge { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: var(--green); font-weight: 500; }
   .pulse { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @keyframes pulse { 0%,100%{opacity:1; transform:scale(1);} 50%{opacity:0.3; transform:scale(1.2);} }
 
-  .api-strip { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; background: rgba(13,31,60,0.72); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem; font-size: 0.72rem; color: var(--muted); }
-  .api-pill { color: var(--green); border: 1px solid rgba(34,197,94,0.45); background: rgba(34,197,94,0.08); border-radius: 999px; padding: 0.25rem 0.65rem; }
+  .api-strip { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between; background: rgba(17,24,39,0.72); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem; font-size: 0.72rem; color: var(--muted); }
+  .api-pill { color: var(--green); border: 1px solid rgba(16,185,129,0.45); background: rgba(16,185,129,0.08); border-radius: 999px; padding: 0.25rem 0.65rem; }
 
   /* Stats grid */
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1.5rem 0; }
-  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; }
-  .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
-  .stat-value { font-size: 2rem; font-weight: bold; color: var(--accent); }
-  .stat-value.red { color: var(--red); }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; padding: 1.5rem 0; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; backdrop-filter: blur(8px); }
+  .stat-label { font-family: 'Orbitron', sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+  .stat-value { font-family: 'Orbitron', sans-serif; font-size: 2rem; font-weight: 900; color: var(--accent); text-shadow: 0 0 10px rgba(0, 212, 255, 0.15); }
+  .stat-value.red { color: var(--red); text-shadow: 0 0 10px rgba(244,63,94,0.15); }
   .stat-value.orange { color: var(--orange); }
   .stat-value.green { color: var(--green); }
   .stat-sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
 
-  /* Main grid */
-  .main-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 1.5rem; padding-bottom: 2rem; }
+  /* Main grid: 3-column command center layout */
+  .main-grid { display: grid; grid-template-columns: 1.15fr 1fr 0.85fr; gap: 1.5rem; padding-bottom: 2rem; }
+  @media(max-width:1100px){ .main-grid{grid-template-columns: 1fr 1fr;} }
   @media(max-width:768px){ .main-grid{grid-template-columns:1fr;} }
 
   /* Panel */
-  .panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .panel:hover {
+    border-color: rgba(0, 212, 255, 0.25);
+    box-shadow: 0 4px 20px rgba(0, 212, 255, 0.04);
+  }
   .panel-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-  .panel-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+  .panel-title { font-family: 'Orbitron', sans-serif; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
   .panel-body { padding: 1rem 1.25rem; }
 
   /* Orbit vis */
-  #orbit-canvas { width: 100%; aspect-ratio: 1; }
+  .canvas-container { position: relative; width: 100%; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #01030a; border: 1px solid rgba(55, 65, 81, 0.3); }
+  #orbit-canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+  #orbit-canvas:active { cursor: grabbing; }
+  .orbit-caption { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; justify-content: space-between; padding: 0.6rem 0.75rem 0.1rem; color: var(--muted); font-size: 0.68rem; line-height: 1.35; }
+  .orbit-chip { border: 1px solid rgba(0,212,255,0.32); background: rgba(0,212,255,0.06); color: #cbd5e1; border-radius: 999px; padding: 0.22rem 0.55rem; font-family: 'Orbitron', sans-serif; font-size: 0.65rem; }
 
   /* Conjunction list */
-  .conj-item { padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem; border: 1px solid var(--border); background: var(--surface); }
+  #conj-list-scroll { max-height: 480px; overflow-y: auto; padding-right: 0.25rem; }
+  .conj-item { padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem; border: 1px solid var(--border); background: var(--surface); transition: border-color 0.2s ease; }
+  .conj-item:hover { border-color: rgba(244, 63, 94, 0.3); }
   .conj-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-  .conj-sats { font-size: 0.8rem; font-weight: bold; }
-  .risk-badge { font-size: 0.65rem; padding: 2px 8px; border-radius: 99px; font-weight: bold; }
-  .risk-CRITICAL { background: rgba(239,68,68,0.2); color: var(--red); border: 1px solid var(--red); }
-  .risk-HIGH     { background: rgba(249,115,22,0.2); color: var(--orange); border: 1px solid var(--orange); }
-  .risk-MEDIUM   { background: rgba(234,179,8,0.2); color: var(--yellow); border: 1px solid var(--yellow); }
-  .risk-LOW      { background: rgba(34,197,94,0.2); color: var(--green); border: 1px solid var(--green); }
-  .conj-dist { font-size: 0.75rem; color: var(--muted); }
-  .conj-alert { font-size: 0.7rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.4; }
-  .agent-summary { border: 1px solid rgba(0,212,255,0.35); background: rgba(0,212,255,0.06); border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem; }
-  .agent-kicker { color: var(--accent); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.45rem; }
-  .agent-text { font-size: 0.78rem; color: #cbd5e1; line-height: 1.5; }
-  .scope-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
-  .scope-item { background: var(--surface); border: 1px solid rgba(26,48,96,0.7); border-radius: 6px; padding: 0.75rem; color: #cbd5e1; font-size: 0.72rem; line-height: 1.35; }
+  .conj-sats { font-size: 0.8rem; font-weight: bold; color: #f3f4f6; }
+  .risk-badge { font-family: 'Orbitron', sans-serif; font-size: 0.6rem; padding: 2px 8px; border-radius: 99px; font-weight: 700; }
+  .risk-CRITICAL { background: rgba(244,63,94,0.15); color: var(--red); border: 1px solid var(--red); }
+  .risk-HIGH     { background: rgba(249,115,22,0.15); color: var(--orange); border: 1px solid var(--orange); }
+  .risk-MEDIUM   { background: rgba(234,179,8,0.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .risk-LOW      { background: rgba(16,185,207,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .conj-dist { font-size: 0.72rem; color: var(--muted); }
+  .conj-alert { font-size: 0.7rem; color: #cbd5e1; margin-top: 0.4rem; line-height: 1.4; border-left: 2px solid rgba(255,255,255,0.1); padding-left: 6px; }
+  .agent-summary { border: 1px solid rgba(0,212,255,0.3); background: rgba(0,212,255,0.04); border-radius: 8px; padding: 0.9rem; margin-bottom: 1rem; }
+  .agent-kicker { color: var(--accent); font-family: 'Orbitron', sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.45rem; font-weight: 700; }
+  .agent-text { font-size: 0.75rem; color: #d1d5db; line-height: 1.5; }
+  
+  .watchlist-table-wrap { max-height: 120px; overflow-y: auto; margin-bottom: 0.75rem; border: 1px solid var(--border); border-radius: 6px; }
   .integration-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; margin-top: 1rem; }
-  .integration-item { background: var(--surface); border: 1px solid rgba(26,48,96,0.7); border-radius: 6px; padding: 0.65rem; font-size: 0.7rem; color: #cbd5e1; }
-  .integration-item strong { display: block; color: var(--accent); margin-bottom: 0.2rem; }
+  .integration-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.65rem; font-size: 0.7rem; color: #cbd5e1; }
+  .integration-item strong { display: block; color: var(--accent); font-family: 'Orbitron', sans-serif; font-size: 0.65rem; margin-bottom: 0.2rem; }
   .auth-row { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
-  .auth-row input { min-width: 0; flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-family: inherit; font-size: 0.72rem; }
+  .auth-row input, .sat-search-input { min-width: 0; flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-family: inherit; font-size: 0.75rem; transition: border-color 0.2s; }
+  .auth-row input:focus, .sat-search-input:focus { outline:none; border-color: var(--accent); }
   .auth-note { color: var(--muted); font-size: 0.68rem; line-height: 1.4; margin-top: 0.4rem; }
-  @media(max-width:520px){ .scope-grid{grid-template-columns:1fr;} }
 
   /* Threshold slider */
   .threshold-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
   .threshold-row label { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-  input[type=range] { flex: 1; accent-color: var(--accent); }
-  .threshold-val { font-size: 0.85rem; color: var(--accent); min-width: 60px; }
+  input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; }
+  .threshold-val { font-family: 'Orbitron', sans-serif; font-size: 0.85rem; color: var(--accent); min-width: 65px; font-weight: bold; }
 
   /* Satellite table */
-  .sat-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-  .sat-table th { color: var(--muted); text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; }
-  .sat-table td { padding: 0.5rem 0.5rem; border-bottom: 1px solid rgba(26,48,96,0.5); }
-  .sat-table tr:hover td { background: rgba(0,212,255,0.03); }
+  .sat-search-container { padding: 0.5rem 0; display: flex; gap: 0.5rem; }
+  .sat-table-scroll { max-height: 250px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+  .sat-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; text-align: left; }
+  .sat-table th { color: var(--muted); text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 0.65rem; font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; background: rgba(17, 24, 39, 0.8); position: sticky; top: 0; }
+  .sat-table td { padding: 0.5rem 0.6rem; border-bottom: 1px solid rgba(55,65,81,0.3); cursor: pointer; }
+  .sat-table tr:hover td { background: rgba(0,212,255,0.06); }
+  .sat-table tr.selected td { background: rgba(139,92,246,0.12); border-bottom-color: rgba(139,92,246,0.4); }
 
-  .loading { color: var(--muted); font-size: 0.8rem; padding: 1rem; text-align: center; }
-  .refresh-btn { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-family: inherit; }
-  .refresh-btn:hover { background: rgba(0,212,255,0.1); }
+  /* Chatbot Interface */
+  .chat-panel { display: flex; flex-direction: column; }
+  .chat-container { display: flex; flex-direction: column; height: 500px; padding: 0.75rem; }
+  .chat-messages { flex: 1; overflow-y: auto; margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem; padding-right: 0.25rem; }
+  .chat-bubble { padding: 0.65rem 0.85rem; border-radius: 10px; font-size: 0.75rem; line-height: 1.45; max-width: 88%; }
+  .chat-bubble.ai { background: rgba(0, 212, 255, 0.06); border: 1px solid rgba(0, 212, 255, 0.22); color: #cbd5e1; align-self: flex-start; }
+  .chat-bubble.user { background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.25); color: #f3f4f6; align-self: flex-end; }
+  .chat-bubble strong { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; display: block; margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .chat-bubble.ai strong { color: var(--accent); }
+  .chat-bubble.user strong { color: #a78bfa; }
+  .chat-input-row { display: flex; gap: 0.5rem; }
+  .chat-input-row input { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.5rem 0.75rem; font-family: inherit; font-size: 0.78rem; }
+  .chat-input-row input:focus { outline: none; border-color: var(--accent); }
+
+  .loading { color: var(--muted); font-size: 0.8rem; padding: 1.5rem; text-align: center; }
+  .refresh-btn { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-family: 'Orbitron', sans-serif; font-weight: 700; text-transform: uppercase; transition: all 0.2s; }
+  .refresh-btn:hover { background: rgba(0,212,255,0.12); box-shadow: 0 0 8px rgba(0, 212, 255, 0.2); }
   
-  footer { border-top: 1px solid var(--border); padding: 1rem 0; text-align: center; font-size: 0.7rem; color: var(--muted); }
+  footer { border-top: 1px solid var(--border); padding: 1.5rem 0; text-align: center; font-size: 0.7rem; color: var(--muted); background: rgba(3, 7, 18, 0.9); }
 </style>
 </head>
 <body>
@@ -127,65 +173,239 @@
       <div class="logo-icon">OW</div>
       <div class="logo-text">ORBIT<span>WATCH</span></div>
     </div>
-    <div style="font-size:0.7rem;color:var(--muted)">FAR AWAY 2026 | Space & Aerospace</div>
-    <div class="status-badge"><div class="pulse"></div> LIVE API - CelesTrak SGP4</div>
+    <div style="font-size:0.7rem;color:var(--muted);font-family:'Orbitron',sans-serif;">CMD CENTER v2.0</div>
+    <div class="status-badge"><div class="pulse"></div> LIVE SGP4 MONITORING</div>
   </div>
 </header>
 
 <div class="wrap">
   <div class="api-strip">
-    <span id="api-status">Backend: connecting to Vercel Python Serverless...</span>
-    <span id="api-updated" class="api-pill">Waiting for first API response</span>
+    <span id="api-status">Backend: linking operator telemetry systems...</span>
+    <span id="api-updated" class="api-pill">Syncing...</span>
   </div>
 
   <!-- Stats -->
   <div class="stats-grid" id="stats-grid">
     <div class="stat-card"><div class="stat-label">Tracked Objects</div><div class="stat-value" id="s-total">--</div><div class="stat-sub">satellites + debris</div></div>
     <div class="stat-card"><div class="stat-label">Active Satellites</div><div class="stat-value green" id="s-active">--</div><div class="stat-sub">operational</div></div>
-    <div class="stat-card"><div class="stat-label">Debris Fragments</div><div class="stat-value orange" id="s-debris">--</div><div class="stat-sub">tracked</div></div>
-    <div class="stat-card"><div class="stat-label">High Risk Today</div><div class="stat-value red" id="s-risk">--</div><div class="stat-sub">conjunction events</div></div>
+    <div class="stat-card"><div class="stat-label">Debris Fragments</div><div class="stat-value orange" id="s-debris">--</div><div class="stat-sub">inactive fragments</div></div>
+    <div class="stat-card"><div class="stat-label">Critical Conjunctions</div><div class="stat-value red" id="s-risk">--</div><div class="stat-sub">upcoming close passes</div></div>
   </div>
 
   <!-- Main Grid -->
   <div class="main-grid">
 
-    <!-- Left: Orbit Visualization -->
-    <div>
-      <div class="panel" style="margin-bottom:1.5rem">
+    <!-- Column 1: Orbit Visualization & Objects Table -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+      <div class="panel">
         <div class="panel-header">
-          <span class="panel-title">Orbital Map (Real-time)</span>
-          <button class="refresh-btn" onclick="refreshAll()">Refresh</button>
+          <span class="panel-title">Interactive Orbit Map</span>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <select id="catalog-select" style="background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px; font-family:'Orbitron',sans-serif; font-size:0.65rem; padding:2px 6px; outline:none;" onchange="onCatalogChange(this.value)">
+              <option value="STATIONS">Space Stations</option>
+              <option value="STARLINK">Starlink Fleet</option>
+              <option value="GPS-OPS">GPS Navigation</option>
+              <option value="WEATHER">Weather Satellites</option>
+              <option value="ACTIVE">All Active</option>
+            </select>
+            <button class="refresh-btn" onclick="refreshAll()">Refresh</button>
+          </div>
         </div>
         <div class="panel-body" style="padding:0.5rem">
-          <canvas id="orbit-canvas" width="500" height="500"></canvas>
+          <div class="canvas-container">
+            <canvas id="orbit-canvas" width="500" height="500"></canvas>
+          </div>
+          <div class="orbit-caption">
+            <span id="orbit-focus">Drag to rotate. Scroll to zoom. Click row to plot path.</span>
+            <span class="orbit-chip" id="orbit-count">0 objects</span>
+          </div>
         </div>
       </div>
 
       <!-- Sat table -->
       <div class="panel">
-        <div class="panel-header"><span class="panel-title">Tracked Objects</span></div>
-        <div class="panel-body" style="padding:0.5rem 1rem">
-          <div id="sat-table-wrap"><div class="loading">Loading orbital data...</div></div>
+        <div class="panel-header">
+          <span class="panel-title">Tracked Catalog Details</span>
+        </div>
+        <div class="panel-body" style="padding:0.75rem 1rem">
+          <div class="sat-search-container" style="display: flex; flex-direction: column; gap: 0.5rem; width: 100%;">
+            <input type="text" id="sat-search" class="sat-search-input" placeholder="Search by name, ID..." oninput="filterAndRenderSatellites()" style="width: 100%;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%;">
+              <select id="sat-filter-country" style="background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px; font-family:'Orbitron',sans-serif; font-size:0.65rem; padding:4px 6px; outline:none;" onchange="filterAndRenderSatellites()">
+                <option value="">All Countries</option>
+              </select>
+              <select id="sat-filter-type" style="background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:4px; font-family:'Orbitron',sans-serif; font-size:0.65rem; padding:4px 6px; outline:none;" onchange="filterAndRenderSatellites()">
+                <option value="">All Types</option>
+                <option value="PAYLOAD">Payload</option>
+                <option value="DEBRIS">Debris</option>
+                <option value="ROCKET BODY">Rocket Body</option>
+              </select>
+            </div>
+          </div>
+          <div class="sat-table-scroll">
+            <div id="sat-table-wrap"><div class="loading">Loading catalog...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 2: Conjunction Alerts & Ingestor Status -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">24h Conjunction Scans</span>
+        </div>
+        <div class="panel-body">
+          <div class="threshold-row">
+            <label>Scan Radius:</label>
+            <input type="range" min="100" max="10000" value="2000" id="threshold" oninput="updateThreshold(this.value)">
+            <span class="threshold-val" id="threshold-val">2000 km</span>
+          </div>
+          <div class="agent-summary">
+            <div class="agent-kicker">Operator Briefing</div>
+            <div class="agent-text" id="agent-summary">Waiting for conjunction scan...</div>
+          </div>
+          <div id="conj-list-scroll">
+            <div id="conj-list"><div class="loading">Scanning paths...</div></div>
+          </div>
         </div>
       </div>
 
-      <div class="panel" style="margin-top:1.5rem">
-        <div class="panel-header"><span class="panel-title">Auth, Database, Alerts</span></div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Watchlist Monitor</span>
+        </div>
+        <div class="panel-body">
+          <div class="watchlist-table-wrap">
+            <div id="watchlist-wrap"><div class="loading">No watchlist items registered</div></div>
+          </div>
+          <div class="auth-row">
+            <input id="watch-object" type="text" placeholder="Object name (e.g. ISS)">
+            <button class="refresh-btn" onclick="saveWatchItem()">Add</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conjunction History Panel -->
+      <div class="panel" style="margin-top: 0rem;">
+        <div class="panel-header">
+          <span class="panel-title">Conjunction Log History</span>
+        </div>
+        <div class="panel-body" style="padding:0.75rem 1rem">
+          <div id="history-conjunctions-wrap" style="max-height: 150px; overflow-y: auto;">
+            <div class="loading" style="padding:0.5rem 0; font-size:0.7rem">No historical events recorded</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Column 3: Operator AI Co-pilot Chat & Auth -->
+    <div style="display:flex; flex-direction:column; gap:1.5rem;">
+      <div class="panel chat-panel">
+        <div class="panel-header">
+          <span class="panel-title">AI Co-pilot Operator Chat</span>
+        </div>
+        <div class="chat-container">
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-bubble ai">
+              <strong>Co-pilot</strong>
+              Telemetry systems operational. I can assist with flight paths, risk computations, and retrograde maneuver guidance. How can I help you, operator?
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <input id="chat-input" type="text" placeholder="Query flight plans, risk profiles..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+            <button class="refresh-btn" onclick="sendChatMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Maneuver Simulation Sandbox Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Maneuver Simulation Sandbox</span>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <label style="font-size: 0.72rem; color: var(--muted);">Active Conjunction Target:</label>
+            <select id="sim-conjunction-select" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.4rem 0.5rem; outline: none; width: 100%;" onchange="onSimConjunctionChange()">
+              <option value="">No active conjunctions selected</option>
+            </select>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Thrust Satellite:</label>
+              <select id="sim-sat-select" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.4rem 0.5rem; outline: none; width: 100%;">
+                <option value="sat1">Satellite 1</option>
+                <option value="sat2">Satellite 2</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Burn Vector:</label>
+              <select id="sim-direction-select" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.4rem 0.5rem; outline: none; width: 100%;">
+                <option value="retrograde">Retrograde (Slows/Lowers)</option>
+                <option value="prograde">Prograde (Speeds/Raises)</option>
+                <option value="radial">Radial Outward</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Delta-V Burn Magnitude:</label>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="range" min="0.1" max="5.0" step="0.1" value="1.0" id="sim-dv-slider" oninput="document.getElementById('sim-dv-val').textContent = this.value + ' m/s'">
+                <span id="sim-dv-val" style="font-size: 0.75rem; color: var(--accent); font-weight: bold; min-width: 45px;">1.0 m/s</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Burn Lead Window:</label>
+              <select id="sim-lead-select" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.4rem 0.5rem; outline: none; width: 100%;">
+                <option value="1">1 hour before TCA</option>
+                <option value="2" selected>2 hours before TCA</option>
+                <option value="4">4 hours before TCA</option>
+                <option value="8">8 hours before TCA</option>
+                <option value="12">12 hours before TCA</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="refresh-btn" style="width: 100%; padding: 0.5rem; margin-top: 0.25rem; font-weight: bold;" onclick="runManeuverSimulation()">Execute Avoidance Simulation</button>
+
+          <div id="sim-results-box" style="display: none; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 0.65rem; font-size: 0.72rem; line-height: 1.4;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <strong>Simulation Outcome:</strong>
+              <span id="sim-status-badge" class="risk-badge">--</span>
+            </div>
+            <div>Original Miss Distance: <strong id="sim-orig-dist">--</strong></div>
+            <div>Simulated Separation: <strong id="sim-new-dist" style="color: var(--green);">--</strong></div>
+            <div>Miss Distance Delta: <strong id="sim-delta-dist" style="color: var(--accent);">--</strong></div>
+            <div style="margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+              <div style="font-family: 'Orbitron', sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>Separation (km) <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span></span>
+                <span style="font-size: 0.6rem; text-transform: none;">X-Axis: Time to TCA</span>
+              </div>
+              <canvas id="sim-chart-canvas" style="width: 100%; height: 120px; display: block; background: #010307; border: 1px solid rgba(55, 65, 81, 0.4); border-radius: 4px;"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Operator Credentials & Testing</span>
+        </div>
         <div class="panel-body">
           <div class="auth-row">
-            <input id="auth-email" type="email" placeholder="operator@email.com">
-            <button class="refresh-btn" onclick="requestLoginCode()">Send Code</button>
+            <input id="auth-email" type="email" placeholder="operator@orbit.gov">
+            <button class="refresh-btn" onclick="requestLoginCode()">Get Code</button>
           </div>
           <div class="auth-row">
-            <input id="auth-code" type="text" placeholder="6-digit code">
-            <button class="refresh-btn" onclick="verifyLoginCode()">Login</button>
+            <input id="auth-code" type="text" placeholder="Code">
+            <button class="refresh-btn" onclick="verifyLoginCode()">Log In</button>
           </div>
-          <div class="auth-row">
-            <input id="watch-object" type="text" placeholder="Object watchlist name, e.g. ISS">
-            <button class="refresh-btn" onclick="saveWatchItem()">Save</button>
-          </div>
-          <button class="refresh-btn" onclick="sendTestAlert()">Send Test Alert</button>
-          <div class="auth-note" id="auth-note">Login codes and alerts use Resend when configured. Watchlists persist in Upstash Redis when configured.</div>
+          <button class="refresh-btn" style="width:100%; margin-top:0.4rem;" onclick="sendTestAlert()">Send Conjunction Email Alert</button>
+          <div class="auth-note" id="auth-note">Credentials authenticate watchlist storage.</div>
           <div class="integration-grid" id="integration-grid">
             <div class="integration-item"><strong>CelesTrak</strong>Checking...</div>
             <div class="integration-item"><strong>OpenAI</strong>Checking...</div>
@@ -194,33 +414,108 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- Right: Conjunction alerts -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Conjunction Events</span>
+      <!-- Automated Email Alert Routing Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Automated Email Alert Routing</span>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-size: 0.72rem; color: var(--muted); cursor: pointer;" for="alert-bg-enable">Enable Background Scanning:</label>
+            <input type="checkbox" id="alert-bg-enable" style="width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer;">
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <label style="font-size: 0.72rem; color: var(--muted);">Alert Subscription Email:</label>
+            <input id="alert-target-email" type="email" placeholder="operator@orbit.gov" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+            <label style="font-size: 0.72rem; color: var(--muted);">Risk Priority Threshold:</label>
+            <select id="alert-threshold-select" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.4rem 0.5rem; outline: none; width: 100%; font-family: inherit;">
+              <option value="CRITICAL">CRITICAL Only (< 5km)</option>
+              <option value="HIGH">HIGH and above (< 25km)</option>
+              <option value="MEDIUM">MEDIUM and above (< 100km)</option>
+              <option value="LOW">All approach warnings</option>
+            </select>
+          </div>
+
+          <button class="refresh-btn" style="width: 100%; padding: 0.5rem; font-weight: bold;" onclick="saveAlertSettings()">Save Alert Preferences</button>
+          <button class="refresh-btn" style="width: 100%; padding: 0.5rem; background: rgba(0, 212, 255, 0.05); border-color: rgba(0, 212, 255, 0.5);" onclick="triggerManualScan()">Trigger Direct Scan</button>
+          <div class="auth-note" id="alert-status-note">Log in to configure subscription settings.</div>
+        </div>
       </div>
-      <div class="panel-body">
-        <div class="threshold-row">
-          <label>Threshold:</label>
-          <input type="range" min="50" max="10000" value="2000" id="threshold" oninput="updateThreshold(this.value)">
-          <span class="threshold-val" id="threshold-val">2000 km</span>
+
+      <!-- Launch Custom Satellite Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Launch Custom Satellite (Keplerian Editor)</span>
         </div>
-        <div class="agent-summary">
-          <div class="agent-kicker">Agent Alert Summary</div>
-          <div class="agent-text" id="agent-summary">Waiting for conjunction scan...</div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Satellite Name:</label>
+              <input id="custom-sat-name" type="text" placeholder="MYSAT-1" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Country:</label>
+              <input id="custom-sat-country" type="text" placeholder="USA" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Semi-major Axis (km):</label>
+              <input id="custom-sat-a" type="number" step="0.1" value="7000" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <label style="font-size: 0.72rem; color: var(--muted);">Eccentricity (0-0.9):</label>
+              <input id="custom-sat-e" type="number" step="0.0001" value="0.001" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.4rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.68rem;">
+              <label style="font-size: 0.68rem; color: var(--muted);">Inclination (°):</label>
+              <input id="custom-sat-i" type="number" step="0.1" value="51.6" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.68rem;">
+              <label style="font-size: 0.68rem; color: var(--muted);">RAAN (°):</label>
+              <input id="custom-sat-raan" type="number" step="0.1" value="120.0" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.68rem;">
+              <label style="font-size: 0.68rem; color: var(--muted);">Mean Anom (°):</label>
+              <input id="custom-sat-ma" type="number" step="0.1" value="0.0" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+          </div>
+          
+          <input id="custom-sat-argp" type="hidden" value="0.0">
+
+          <button class="refresh-btn" style="width: 100%; padding: 0.5rem; font-weight: bold; background: rgba(139, 92, 246, 0.1); border-color: rgba(139, 92, 246, 0.5);" onclick="launchCustomSatellite()">Launch Custom Satellite</button>
+          <div class="auth-note" id="custom-sat-note">Log in to launch satellites.</div>
         </div>
-        <div id="conj-list"><div class="loading">Scanning for conjunctions...</div></div>
       </div>
     </div>
 
   </div>
+
+  <!-- Full-Width Diagnostic Terminal -->
+  <div class="panel" style="margin-top: 1.5rem; margin-bottom: 2rem;">
+    <div class="panel-header" style="background: rgba(17,24,39,0.8); border-bottom: 1px solid var(--border);">
+      <span class="panel-title" style="color: var(--accent2); font-family: 'Orbitron', sans-serif;">System Diagnostic & Operator Audit Log</span>
+    </div>
+    <div class="panel-body" style="padding: 0.75rem; background: #010307; font-family: 'Courier New', monospace; font-size: 0.72rem; color: #34d399; height: 130px; overflow-y: auto; line-height: 1.45;" id="audit-log-terminal">
+      <div style="opacity: 0.5;">[SYSTEM] Initializing OrbitWatch Diagnostic Subsystems...</div>
+      <div style="opacity: 0.5;">[SYSTEM] Local Telemetry Server Connected successfully on port 8000.</div>
+    </div>
+  </div>
+
 </div>
 
 <footer>
   <div class="wrap">
-    OrbitWatch - FAR AWAY 2026 - Team HallucinateThis - Live CelesTrak GP TLE - FastAPI + SGP4 + Vercel
+    OrbitWatch v2.0 - Built for FAR AWAY 2026 - Powered by FastAPI, SGP4, and OpenAI
   </div>
 </footer>
 
@@ -228,237 +523,497 @@
 const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8000'
   : window.location.origin;
+
 let satellites = [];
+let conjunctionEvents = [];
 let sessionToken = localStorage.getItem('orbitwatch_token') || '';
+let selectedSatelliteName = '';
+let chatHistory = [];
+
+// Interactive Globe rotation & zoom
+let targetRotationX = 0.6;
+let targetRotationY = 0.3;
+let rotationX = 0.6;
+let rotationY = 0.3;
+let zoom = 1.0;
+let isDragging = false;
+let startX = 0, startY = 0;
+
+const canvas = document.getElementById('orbit-canvas');
+canvas.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  startX = e.clientX;
+  startY = e.clientY;
+});
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
+  targetRotationX += dx * 0.005;
+  targetRotationY = Math.max(-1.4, Math.min(1.4, targetRotationY + dy * 0.005));
+  startX = e.clientX;
+  startY = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoom = Math.max(0.4, Math.min(3.0, zoom - e.deltaY * 0.0015));
+});
+
+function getSelectedCatalog() {
+  return document.getElementById('catalog-select').value;
+}
 
 async function fetchStats() {
   try {
-    const r = await fetch(`${API}/api/stats`);
+    const group = getSelectedCatalog();
+    const r = await fetch(`${API}/api/stats?group=${group}`);
     const d = await r.json();
     document.getElementById('s-total').textContent = d.tracked_objects.toLocaleString();
     document.getElementById('s-active').textContent = d.active_satellites.toLocaleString();
     document.getElementById('s-debris').textContent = d.debris_fragments.toLocaleString();
-    document.getElementById('s-risk').textContent = d.high_risk_events_today;
-    document.getElementById('api-status').textContent = `Backend: ${d.runtime || 'FastAPI'} connected - ${d.data_source || 'SGP4 demo catalog'}`;
+    document.getElementById('api-status').textContent = `Backend: ${d.runtime || 'FastAPI'} connected - ${d.data_source || 'SGP4 demo'}`;
     document.getElementById('api-updated').textContent = `Updated: ${new Date(d.last_updated).toLocaleTimeString()}`;
     renderIntegrations(d.integrations || {});
   } catch(e) {
-    // Demo fallback
     document.getElementById('s-total').textContent = '27,686';
     document.getElementById('s-active').textContent = '8,963';
     document.getElementById('s-debris').textContent = '18,723';
-    document.getElementById('s-risk').textContent = '4';
-    document.getElementById('api-status').textContent = 'Backend: offline fallback mode';
-    document.getElementById('api-updated').textContent = 'Using local demo data';
+    document.getElementById('api-status').textContent = 'Backend: offline fallback';
+    document.getElementById('api-updated').textContent = 'Using mock demo data';
   }
+}
+
+function populateCountryFilter(sats) {
+  const select = document.getElementById('sat-filter-country');
+  if (!select) return;
+  const currentVal = select.value;
+  
+  const countries = [...new Set(sats.map(s => s.country).filter(Boolean))].sort();
+  
+  let options = `<option value="">All Countries</option>`;
+  countries.forEach(c => {
+    options += `<option value="${c}">${c}</option>`;
+  });
+  select.innerHTML = options;
+  select.value = currentVal;
 }
 
 async function fetchSatellites() {
   try {
-    const r = await fetch(`${API}/api/satellites?group=STATIONS&limit=80`);
+    const group = getSelectedCatalog();
+    const headers = sessionToken ? {'Authorization': `Bearer ${sessionToken}`} : {};
+    const r = await fetch(`${API}/api/satellites?group=${group}&limit=120`, { headers });
     const d = await r.json();
     satellites = d.satellites;
+    populateCountryFilter(satellites);
   } catch(e) {
     satellites = [
-      {name:"ISS (ZARYA)",x:4200,y:-1800,z:4500,alt_km:408},
-      {name:"STARLINK-1234",x:6800,y:200,z:1200,alt_km:550},
-      {name:"DEBRIS-A",x:4210,y:-1820,z:4490,alt_km:407},
-      {name:"COSMOS 2251 DEB",x:3100,y:5200,z:3400,alt_km:811},
-      {name:"FENGYUN 1C DEB",x:-2100,y:5800,z:4200,alt_km:850},
-      {name:"IRIDIUM 33 DEB",x:5100,y:3200,z:4800,alt_km:778},
+      {name:"ISS (ZARYA)",x:4200,y:-1800,z:4500,vx:-4.5,vy:5.0,vz:2.1,alt_km:408,radius_km:6779,country:"INT",object_type:"PAYLOAD",norad_id:"25544"},
+      {name:"STARLINK-1234",x:6800,y:200,z:1200,vx:1.1,vy:6.0,vz:-4.2,alt_km:550,radius_km:6921,country:"USA",object_type:"PAYLOAD",norad_id:"44235"},
+      {name:"DEBRIS-A",x:4210,y:-1820,z:4490,vx:-4.6,vy:4.9,vz:2.2,alt_km:407,radius_km:6778,country:"UNKNOWN",object_type:"DEBRIS",norad_id:"12345"},
+      {name:"COSMOS 2251 DEB",x:3100,y:5200,z:3400,vx:5.1,vy:-2.0,vz:4.8,alt_km:811,radius_km:7182,country:"RUS",object_type:"DEBRIS",norad_id:"34341"},
     ];
+    populateCountryFilter(satellites);
   }
-  renderOrbit();
-  renderSatTable();
+  filterAndRenderSatellites();
 }
 
-async function fetchConjunctions(threshold=50) {
+async function fetchConjunctions(threshold=2000) {
   const el = document.getElementById('conj-list');
-  el.innerHTML = '<div class="loading">Scanning orbital paths...</div>';
   try {
-    const r = await fetch(`${API}/api/conjunctions?threshold_km=${threshold}&group=STATIONS&limit=80`);
+    const group = getSelectedCatalog();
+    const headers = sessionToken ? {'Authorization': `Bearer ${sessionToken}`} : {};
+    const r = await fetch(`${API}/api/conjunctions?threshold_km=${threshold}&group=${group}&limit=80`, { headers });
     const d = await r.json();
-    renderConjunctions(d.conjunctions && d.conjunctions.length ? d.conjunctions : d.nearest_approaches);
+    conjunctionEvents = d.conjunctions && d.conjunctions.length ? d.conjunctions : d.nearest_approaches;
+    document.getElementById('s-risk').textContent = (d.conjunctions || []).filter(e => e.risk_level === 'CRITICAL' || e.risk_level === 'HIGH').length;
+    renderConjunctions(conjunctionEvents);
     fetchAgentBriefing(threshold);
   } catch(e) {
-    renderConjunctions(getDemoConjunctions());
+    conjunctionEvents = getDemoConjunctions();
+    document.getElementById('s-risk').textContent = '2';
+    renderConjunctions(conjunctionEvents);
   }
 }
 
 async function fetchAgentBriefing(threshold=2000) {
   try {
-    const r = await fetch(`${API}/api/agent-briefing?threshold_km=${threshold}&group=STATIONS&limit=80`);
+    const group = getSelectedCatalog();
+    const r = await fetch(`${API}/api/agent-briefing?threshold_km=${threshold}&group=${group}&limit=80`);
     const d = await r.json();
-    const suffix = d.mode === 'openai_responses_api' ? ` Model: ${d.model}.` : ' Add OPENAI_API_KEY in Vercel to activate real model calls.';
+    const suffix = d.mode === 'openai_chat_api' ? ` [Model: ${d.model}]` : ' [AI provider offline/unconfigured]';
     document.getElementById('agent-summary').textContent = `${d.briefing}${suffix}`;
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('agent-summary').textContent = 'Conjunction warnings active. Monitor critical intersection windows and review watchlists.';
+  }
 }
 
 function renderIntegrations(integrations) {
   const labels = {
-    celestrak: 'real-time GP TLE feed',
-    openai: 'real model briefing',
-    database: 'Upstash Redis persistence',
-    email_alerts: 'Resend delivery',
+    celestrak: 'real-time TLE catalog',
+    spacetrack: 'Space-Track database',
+    openai: 'copilot reasoning chat',
+    database: 'Redis state saving',
+    email_alerts: 'Resend notifications',
   };
   document.getElementById('integration-grid').innerHTML = Object.entries(labels).map(([key, label]) => `
     <div class="integration-item">
       <strong>${key.replace('_', ' ').toUpperCase()}</strong>
-      ${integrations[key] ? 'ACTIVE' : key === 'celestrak' ? 'ACTIVE' : 'Needs env key'} - ${label}
+      ${integrations[key] ? '<span style="color:var(--green)">ACTIVE</span>' : '<span style="color:var(--muted)">DISCONNECTED</span>'} - ${label}
     </div>
   `).join('');
 }
 
 function getDemoConjunctions() {
   return [
-    {sat1:"ISS (ZARYA)",sat2:"DEBRIS-A",distance_km:0.72,risk_level:"CRITICAL",alert:"CRITICAL: ISS (ZARYA) and DEBRIS-A at 0.72 km. Immediate maneuver required.",sat1_alt:408,sat2_alt:407},
-    {sat1:"STARLINK-1234",sat2:"COSMOS 2251 DEB",distance_km:3.4,risk_level:"HIGH",alert:"HIGH: STARLINK-1234 and COSMOS 2251 DEB at 3.4 km. Maneuver window in about 2 hours.",sat1_alt:550,sat2_alt:540},
-    {sat1:"FENGYUN 1C DEB",sat2:"IRIDIUM 33 DEB",distance_km:14.2,risk_level:"MEDIUM",alert:"MEDIUM: FENGYUN and IRIDIUM 33 DEB at 14.2 km. Monitor closely.",sat1_alt:850,sat2_alt:830},
-    {sat1:"SL-16 R/B",sat2:"METEOR 2-5 DEB",distance_km:38.1,risk_level:"LOW",alert:"LOW: SL-16 and METEOR 2-5 at 38.1 km. No action required.",sat1_alt:900,sat2_alt:880},
+    {sat1:"ISS (ZARYA)",sat2:"DEBRIS-A",distance_km:0.72,risk_level:"CRITICAL",alert:"CRITICAL: ISS (ZARYA) and DEBRIS-A at 0.72 km. Burn assessment needed.",sat1_alt:408,sat2_alt:407,tca_hours_from_now: 2.1},
+    {sat1:"STARLINK-1234",sat2:"COSMOS 2251 DEB",distance_km:14.2,risk_level:"MEDIUM",alert:"MEDIUM: Starlink alignment close. Continual telemetry scan active.",sat1_alt:550,sat2_alt:811,tca_hours_from_now: 14.5},
   ];
 }
 
 function renderConjunctions(events) {
   const el = document.getElementById('conj-list');
   if (!events || events.length === 0) {
-    el.innerHTML = '<div class="loading" style="color:var(--green)">No conjunctions within threshold</div>';
-    renderAgentSummary([]);
+    el.innerHTML = '<div class="loading" style="color:var(--green)">All paths clear within scan radius</div>';
+    populateSimConjunctionDropdown([]);
     return;
   }
-  renderAgentSummary(events);
   el.innerHTML = events.map(e => `
-    <div class="conj-item">
+    <div class="conj-item" style="cursor:pointer" onclick="selectConjunctionPair('${e.sat1}', '${e.sat2}')">
       <div class="conj-header">
-        <span class="conj-sats">${e.sat1} -> ${e.sat2}</span>
+        <span class="conj-sats">${e.sat1} ↔ ${e.sat2}</span>
         <span class="risk-badge risk-${e.risk_level}">${e.risk_level}</span>
       </div>
-      <div class="conj-dist">Distance: <strong>${e.distance_km} km</strong> - Alt: ${e.sat1_alt}km / ${e.sat2_alt}km</div>
+      <div class="conj-dist">Min Dist: <strong>${e.distance_km} km</strong> • TCA: ${e.tca_hours_from_now} hrs</div>
       <div class="conj-alert">${e.alert}</div>
     </div>
   `).join('');
+  
+  populateSimConjunctionDropdown(events);
 }
 
-function renderAgentSummary(events) {
-  const target = document.getElementById('agent-summary');
-  if (!events || events.length === 0) {
-    target.textContent = 'No conjunctions currently exceed the selected threshold. Continue passive monitoring and refresh the catalog every 30 seconds.';
+function selectConjunctionPair(sat1, sat2) {
+  selectedSatelliteName = sat1;
+  renderSatTable();
+}
+
+function filterAndRenderSatellites() {
+  const wrap = document.getElementById('sat-table-wrap');
+  if (!satellites.length) { wrap.innerHTML = '<div class="loading">No catalog data</div>'; return; }
+  
+  const query = document.getElementById('sat-search').value.toLowerCase();
+  const country = document.getElementById('sat-filter-country').value;
+  const type = document.getElementById('sat-filter-type').value;
+  
+  const filtered = satellites.filter(s => {
+    const queryMatch = s.name.toLowerCase().includes(query) || (s.norad_id && s.norad_id.toString().includes(query));
+    const countryMatch = !country || s.country === country;
+    const typeMatch = !type || s.object_type === type;
+    return queryMatch && countryMatch && typeMatch;
+  });
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="loading">No matching satellites</div>';
     return;
   }
 
-  const priority = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
-  const top = [...events].sort((a, b) => priority[b.risk_level] - priority[a.risk_level] || a.distance_km - b.distance_km)[0];
-  const action = top.risk_level === 'CRITICAL'
-    ? 'Immediate operator review is recommended.'
-    : top.risk_level === 'HIGH'
-      ? 'Prepare a maneuver assessment window.'
-      : top.risk_level === 'MEDIUM'
-        ? 'Continue close monitoring and keep an optional maneuver plan ready.'
-        : 'No maneuver is required; keep tracking.';
-
-  target.textContent = `${top.risk_level} priority: ${top.sat1} and ${top.sat2} are ${top.distance_km} km apart. ${action} OrbitWatch detected ${events.length} event(s) inside the current threshold.`;
-}
-
-function renderSatTable() {
-  const wrap = document.getElementById('sat-table-wrap');
-  if (!satellites.length) { wrap.innerHTML = '<div class="loading">No data</div>'; return; }
   wrap.innerHTML = `<table class="sat-table">
-    <thead><tr><th>Object</th><th>Alt (km)</th><th>X</th><th>Y</th></tr></thead>
-    <tbody>${satellites.map(s=>`
-      <tr>
-        <td>${s.name}</td>
-        <td style="color:var(--accent)">${s.alt_km}</td>
-        <td style="color:var(--muted)">${Math.round(s.x)}</td>
-        <td style="color:var(--muted)">${Math.round(s.y)}</td>
+    <thead><tr><th>Object</th><th>Alt (km)</th><th>Country</th></tr></thead>
+    <tbody>${filtered.map(s=>`
+      <tr class="${s.name === selectedSatelliteName ? 'selected' : ''}" onclick="onSelectSatellite('${s.name}')">
+        <td style="font-weight:600">${s.name} <span style="font-size:0.6rem; color:var(--muted)">[${s.object_type || 'PAYLOAD'}]</span></td>
+        <td style="color:var(--accent)">${Math.round(s.alt_km)}</td>
+        <td style="color:var(--muted); font-family:'Orbitron',sans-serif; font-size:0.65rem;">${s.country || 'UNKNOWN'}</td>
       </tr>`).join('')}
     </tbody>
   </table>`;
 }
 
+function renderSatTable() {
+  filterAndRenderSatellites();
+}
+
+function onSelectSatellite(name) {
+  selectedSatelliteName = name;
+  renderSatTable();
+}
+
+// 3D coordinate rotation
+function rotate3D(x, y, z, rotX, rotY) {
+  const cosY = Math.cos(rotY);
+  const sinY = Math.sin(rotY);
+  const x1 = x;
+  const y1 = y * cosY - z * sinY;
+  const z1 = y * sinY + z * cosY;
+
+  const cosX = Math.cos(rotX);
+  const sinX = Math.sin(rotX);
+  const rx = x1 * cosX - z1 * sinX;
+  const ry = y1;
+  const rz = x1 * sinX + z1 * cosX;
+
+  return { x: rx, y: ry, z: rz };
+}
+
 function renderOrbit() {
   const canvas = document.getElementById('orbit-canvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2;
   ctx.clearRect(0,0,W,H);
 
-  // BG
-  ctx.fillStyle = '#040b1a';
+  // Background gradient space fill
+  ctx.fillStyle = '#01030a';
   ctx.fillRect(0,0,W,H);
 
-  // Range shells in the TEME frame, projected to canvas.
-  for (let r of [60,90,120,155]) {
+  const earthRadius = 52 * zoom;
+
+  // Draw 3D Earth gridlines
+  // Parallels (Latitude lines)
+  for (let latDeg = -60; latDeg <= 60; latDeg += 30) {
+    const latRad = (latDeg * Math.PI) / 180;
     ctx.beginPath();
-    ctx.arc(cx,cy,r,0,Math.PI*2);
-    ctx.strokeStyle = 'rgba(26,48,96,0.5)';
-    ctx.lineWidth = 1;
+    let first = true;
+    for (let lonDeg = 0; lonDeg <= 360; lonDeg += 5) {
+      const lonRad = (lonDeg * Math.PI) / 180;
+      const x = Math.cos(latRad) * Math.sin(lonRad);
+      const y = Math.sin(latRad);
+      const z = Math.cos(latRad) * Math.cos(lonRad);
+
+      const r = rotate3D(x, y, z, rotationX, rotationY);
+      const px = cx + r.x * earthRadius;
+      const py = cy + r.y * earthRadius;
+
+      if (r.z >= -0.05) {
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else { ctx.lineTo(px, py); }
+      } else {
+        first = true;
+      }
+    }
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
+    ctx.lineWidth = 0.5;
     ctx.stroke();
   }
-  // Cross-hairs
-  ctx.strokeStyle = 'rgba(26,48,96,0.3)';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.moveTo(cx,20); ctx.lineTo(cx,H-20); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(20,cy); ctx.lineTo(W-20,cy); ctx.stroke();
+  // Meridians (Longitude lines)
+  for (let lonDeg = 0; lonDeg < 360; lonDeg += 45) {
+    const lonRad = (lonDeg * Math.PI) / 180;
+    ctx.beginPath();
+    let first = true;
+    for (let latDeg = -90; latDeg <= 90; latDeg += 5) {
+      const latRad = (latDeg * Math.PI) / 180;
+      const x = Math.cos(latRad) * Math.sin(lonRad);
+      const y = Math.sin(latRad);
+      const z = Math.cos(latRad) * Math.cos(lonRad);
 
-  // Earth
-  const earthGrad = ctx.createRadialGradient(cx,cy,0,cx,cy,52);
-  earthGrad.addColorStop(0,'#1a4fd8');
-  earthGrad.addColorStop(0.7,'#0d3ba8');
-  earthGrad.addColorStop(1,'#081f6b');
-  ctx.beginPath(); ctx.arc(cx,cy,52,0,Math.PI*2);
+      const r = rotate3D(x, y, z, rotationX, rotationY);
+      const px = cx + r.x * earthRadius;
+      const py = cy + r.y * earthRadius;
+
+      if (r.z >= -0.05) {
+        if (first) { ctx.moveTo(px, py); first = false; }
+        else { ctx.lineTo(px, py); }
+      } else {
+        first = true;
+      }
+    }
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // Draw core Earth sphere
+  const earthGrad = ctx.createRadialGradient(cx - earthRadius*0.2, cy - earthRadius*0.2, 0, cx, cy, earthRadius);
+  earthGrad.addColorStop(0,'#1e40af');
+  earthGrad.addColorStop(0.6,'#1e3a8a');
+  earthGrad.addColorStop(1,'#0f172a');
+  ctx.beginPath(); ctx.arc(cx,cy,earthRadius,0,Math.PI*2);
   ctx.fillStyle = earthGrad; ctx.fill();
-  ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.fillStyle = 'rgba(34,197,94,0.4)';
-  ctx.beginPath(); ctx.ellipse(cx-12,cy-10,18,10,0.3,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,212,255,0.4)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // Pulse glow surrounding Earth
+  ctx.shadowColor = 'rgba(0, 212, 255, 0.2)';
+  ctx.shadowBlur = 15;
+  ctx.beginPath(); ctx.arc(cx,cy,earthRadius,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.1)'; ctx.stroke();
+  ctx.shadowBlur = 0; // reset shadow
 
   if (!satellites.length) return;
-  const maxDist = Math.max(...satellites.map(s=>Math.sqrt(s.x**2+s.y**2+s.z**2)));
-  const spin = Date.now() / 18000;
 
-  satellites.forEach((sat, i) => {
+  const maxDist = Math.max(...satellites.map(s => Math.sqrt(s.x**2 + s.y**2 + s.z**2)));
+
+  // Calculate 3D projected coordinates for all satellites
+  const searchQuery = document.getElementById('sat-search').value.toLowerCase();
+  const countryQuery = document.getElementById('sat-filter-country').value;
+  const typeQuery = document.getElementById('sat-filter-type').value;
+
+  const projected = satellites.map((sat) => {
     const nx = sat.x / maxDist;
     const ny = sat.y / maxDist;
     const nz = sat.z / maxDist;
-    const rx = nx * Math.cos(spin) - ny * Math.sin(spin);
-    const ry = nx * Math.sin(spin) + ny * Math.cos(spin);
-    const rz = nz;
-    const perspective = 1 / (1.45 - rz * 0.45);
-    const px = cx + rx * 185 * perspective;
-    const py = cy + ry * 185 * perspective;
 
-    const isDebris = sat.name.toLowerCase().includes('deb') || sat.name.toLowerCase().includes('r/b');
-    const color = isDebris ? '#ef4444' : (sat.name.includes('ISS') ? '#00d4ff' : '#7c3aed');
+    // Apply rotation
+    const r = rotate3D(nx, ny, nz, rotationX, rotationY);
+    const scaleFactor = 170 * zoom;
+    const perspective = 1 / (1.5 - r.z * 0.4);
+    const px = cx + r.x * scaleFactor * perspective;
+    const py = cy + r.y * scaleFactor * perspective;
 
-    // Orbit arc
+    const isDebris = sat.name.toUpperCase().includes('DEB') || sat.name.toUpperCase().includes('R/B');
+    
+    // Check if matches filter
+    const queryMatch = sat.name.toLowerCase().includes(searchQuery) || (sat.norad_id && sat.norad_id.toString().includes(searchQuery));
+    const countryMatch = !countryQuery || sat.country === countryQuery;
+    const typeMatch = !typeQuery || sat.object_type === typeQuery;
+    const isMatch = queryMatch && countryMatch && typeMatch;
+    
+    let color;
+    if (isMatch) {
+      color = isDebris ? 'rgba(244, 63, 94, 0.9)' : (sat.name.includes('ISS') ? 'rgba(0, 212, 255, 0.9)' : 'rgba(139, 92, 246, 0.9)');
+      if (sat.name === selectedSatelliteName) {
+        color = '#ffffff';
+      }
+    } else {
+      color = isDebris ? 'rgba(244, 63, 94, 0.12)' : (sat.name.includes('ISS') ? 'rgba(0, 212, 255, 0.12)' : 'rgba(139, 92, 246, 0.12)');
+      if (sat.name === selectedSatelliteName) {
+        color = 'rgba(255, 255, 255, 0.15)';
+      }
+    }
+
+    return { sat, px, py, rz: r.z, perspective, color, isDebris, isMatch };
+  });
+
+  // Render full orbital track of selected satellite
+  if (selectedSatelliteName) {
+    const selectedSat = satellites.find(s => s.name === selectedSatelliteName);
+    if (selectedSat) {
+      drawSatelliteOrbitTrack(ctx, cx, cy, selectedSat, rotationX, rotationY, maxDist, zoom);
+    }
+  }
+
+  // Draw points (back to front)
+  projected.sort((a,b) => a.rz - b.rz).forEach(({ sat, px, py, perspective, color, isDebris, isMatch }) => {
+    // Draw dots
+    const radius = (isDebris ? 2.5 : 4) * perspective;
     ctx.beginPath();
-    const orbitRadius = 65 + (sat.radius_km / maxDist) * 130;
-    ctx.arc(cx, cy, orbitRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = color + '30';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Dot
-    ctx.beginPath();
-    ctx.arc(px, py, (isDebris?3:5) * perspective, 0, Math.PI*2);
+    ctx.arc(px, py, radius, 0, Math.PI*2);
     ctx.fillStyle = color;
     ctx.fill();
 
-    // Glow
-    const glow = ctx.createRadialGradient(px,py,0,px,py,10);
-    glow.addColorStop(0, color+'60');
-    glow.addColorStop(1,'transparent');
-    ctx.beginPath(); ctx.arc(px,py,10,0,Math.PI*2);
-    ctx.fillStyle = glow; ctx.fill();
-
-    // Label
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '9px Courier New';
-    ctx.fillText(`${sat.name.substring(0,14)} z:${Math.round(sat.z)}`, px+7, py+3);
+    // Pulse glows ONLY for active matching selected satellites or critical nodes
+    if (isMatch) {
+      if (sat.name === selectedSatelliteName) {
+        ctx.beginPath();
+        ctx.arc(px, py, radius + 5 + Math.sin(Date.now() / 100) * 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        const glow = ctx.createRadialGradient(px, py, 0, px, py, radius * 3);
+        glow.addColorStop(0, color.replace('0.9', '0.4').replace('1)', '0.4)'));
+        glow.addColorStop(1, 'transparent');
+        ctx.beginPath(); ctx.arc(px, py, radius * 3, 0, Math.PI*2);
+        ctx.fillStyle = glow; ctx.fill();
+      }
+    }
   });
 
-  // Legend
-  ctx.font = '10px Courier New';
-  ctx.fillStyle = '#00d4ff'; ctx.fillRect(10,H-55,8,8); ctx.fillText('Satellites',22,H-48);
-  ctx.fillStyle = '#ef4444'; ctx.fillRect(10,H-38,8,8); ctx.fillText('Debris',22,H-31);
-  ctx.fillStyle = '#7c3aed'; ctx.fillRect(10,H-21,8,8); ctx.fillText('Other',22,H-14);
+  // Draw pulsing threat connection lines for conjunctions
+  drawConjunctionAlertLines(ctx, cx, cy, conjunctionEvents, projected);
+
+  // Draw labels for top clusters or selected satellite
+  projected.forEach(({ sat, px, py, rz }) => {
+    if (sat.name === selectedSatelliteName || (rz > 0 && Math.random() < 0.04)) {
+      ctx.fillStyle = sat.name === selectedSatelliteName ? '#ffffff' : 'rgba(226, 232, 240, 0.6)';
+      ctx.font = sat.name === selectedSatelliteName ? 'bold 8.5px Inter' : '7.5px Inter';
+      ctx.fillText(sat.name, px + 7, py + 3);
+    }
+  });
+
+  if (projected.length) {
+    const focusObj = satellites.find(s => s.name === selectedSatelliteName) || satellites[0];
+    document.getElementById('orbit-focus').textContent = `Target: ${focusObj.name} | Alt: ${Math.round(focusObj.alt_km)} km | Orbit Plane Tracked`;
+    document.getElementById('orbit-count').textContent = `${satellites.length} tracked`;
+  }
+}
+
+// Spans and draws the exact coordinate orbital loop based on velocity vectors
+function drawSatelliteOrbitTrack(ctx, cx, cy, sat, rotX, rotY, maxDist, zoom) {
+  if (!sat.vx || !sat.vy || !sat.vz) return;
+
+  const r0 = [sat.x, sat.y, sat.z];
+  const v0 = [sat.vx, sat.vy, sat.vz];
+  const r0_len = Math.hypot(...r0);
+  const v0_len = Math.hypot(...v0);
+  if (v0_len === 0) return;
+
+  const scale = r0_len / v0_len;
+
+  ctx.beginPath();
+  let first = true;
+  for (let deg = 0; deg <= 360; deg += 3) {
+    const rad = (deg * Math.PI) / 180;
+    const x = r0[0] * Math.cos(rad) + v0[0] * scale * Math.sin(rad);
+    const y = r0[1] * Math.cos(rad) + v0[1] * scale * Math.sin(rad);
+    const z = r0[2] * Math.cos(rad) + v0[2] * scale * Math.sin(rad);
+
+    const nx = x / maxDist;
+    const ny = y / maxDist;
+    const nz = z / maxDist;
+
+    const r = rotate3D(nx, ny, nz, rotX, rotY);
+    const scaleFactor = 170 * zoom;
+    const perspective = 1 / (1.5 - r.z * 0.4);
+    const px = cx + r.x * scaleFactor * perspective;
+    const py = cy + r.y * scaleFactor * perspective;
+
+    if (first) {
+      ctx.moveTo(px, py);
+      first = false;
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.35)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]); // clear dash
+}
+
+function drawConjunctionAlertLines(ctx, cx, cy, events, projected) {
+  events.forEach(e => {
+    const p1 = projected.find(p => p.sat.name === e.sat1);
+    const p2 = projected.find(p => p.sat.name === e.sat2);
+    if (p1 && p2) {
+      ctx.beginPath();
+      ctx.moveTo(p1.px, p1.py);
+      ctx.lineTo(p2.px, p2.py);
+      
+      let color = 'rgba(255, 255, 255, 0.4)';
+      if (e.risk_level === 'CRITICAL') color = 'rgba(244, 63, 94, 0.85)';
+      else if (e.risk_level === 'HIGH') color = 'rgba(249, 115, 22, 0.75)';
+      else if (e.risk_level === 'MEDIUM') color = 'rgba(234, 179, 8, 0.65)';
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.2 + Math.abs(Math.sin(Date.now() / 250)) * 1.5;
+      ctx.stroke();
+
+      // Pulsing radar tracking ring around targets
+      ctx.beginPath();
+      ctx.arc(p1.px, p1.py, 10 + Math.sin(Date.now() / 150) * 3, 0, Math.PI*2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(p2.px, p2.py, 10 + Math.sin(Date.now() / 150) * 3, 0, Math.PI*2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  });
 }
 
 function updateThreshold(val) {
@@ -466,25 +1021,83 @@ function updateThreshold(val) {
   fetchConjunctions(val);
 }
 
-function refreshAll() {
-  fetchStats();
-  fetchSatellites();
-  fetchConjunctions(document.getElementById('threshold').value);
+function onCatalogChange(val) {
+  selectedSatelliteName = '';
+  refreshAll();
+}
+
+async function refreshAll() {
+  await fetchStats();
+  await fetchSatellites();
+  await fetchConjunctions(document.getElementById('threshold').value);
+  await getWatchlist();
+  await getAlertSettings();
+  await fetchHistory();
+}
+
+async function fetchHistory() {
+  try {
+    const r1 = await fetch(`${API}/api/history/conjunctions`);
+    const d1 = await r1.json();
+    renderHistoryConjunctions(d1.history || []);
+    
+    const r2 = await fetch(`${API}/api/history/audit`);
+    const d2 = await r2.json();
+    renderAuditTerminal(d2.history || []);
+  } catch(e) {}
+}
+
+function renderHistoryConjunctions(events) {
+  const wrap = document.getElementById('history-conjunctions-wrap');
+  if (!events.length) {
+    wrap.innerHTML = '<div class="loading" style="padding:0.5rem 0; font-size:0.7rem">No historical events recorded</div>';
+    return;
+  }
+  wrap.innerHTML = `<table class="sat-table" style="font-size:0.7rem">
+    <thead><tr><th>Collision Pair</th><th>Min Dist</th><th>TCA</th></tr></thead>
+    <tbody>${events.map(e => `
+      <tr>
+        <td><strong>${e.sat1} ↔ ${e.sat2}</strong></td>
+        <td style="color:var(--red); font-weight:600">${e.distance_km} km</td>
+        <td style="color:var(--muted)">${new Date(e.tca).toLocaleTimeString()}</td>
+      </tr>
+    `).join('')}
+    </tbody>
+  </table>`;
+}
+
+function renderAuditTerminal(logs) {
+  const terminal = document.getElementById('audit-log-terminal');
+  if (!logs.length) {
+    terminal.innerHTML = `<div style="opacity: 0.5;">[SYSTEM] No operator audit entries available in database.</div>`;
+    return;
+  }
+  
+  const formatted = logs.map(l => {
+    const timeStr = new Date(l.timestamp).toLocaleTimeString();
+    let color = 'var(--accent)';
+    if (l.action.includes('FAIL')) color = 'var(--red)';
+    else if (l.action.includes('SUCCESS') || l.action.includes('ADD') || l.action.includes('ALERT')) color = 'var(--green)';
+    
+    return `<div>[${timeStr}] <span style="color:${color}; font-weight:bold;">${l.action}</span> - <span style="color:var(--muted)">${l.email}</span>: ${l.details}</div>`;
+  }).join('');
+  
+  terminal.innerHTML = formatted;
 }
 
 async function requestLoginCode() {
   const email = document.getElementById('auth-email').value.trim();
   const note = document.getElementById('auth-note');
-  if (!email) { note.textContent = 'Enter an operator email first.'; return; }
+  if (!email) { note.textContent = 'Enter email to receive code.'; return; }
   const r = await fetch(`${API}/api/auth/request-code`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({email})
   });
   const d = await r.json();
-  note.textContent = d.dev_code
-    ? `Code generated. Dev mode code: ${d.dev_code}`
-    : 'Code sent by email.';
+  note.innerHTML = d.dev_code
+    ? `<span style="color:var(--accent)">Dev Mode Code: ${d.dev_code}</span>`
+    : '<span style="color:var(--green)">Login code transmitted to inbox.</span>';
 }
 
 async function verifyLoginCode() {
@@ -500,23 +1113,76 @@ async function verifyLoginCode() {
   if (d.token) {
     sessionToken = d.token;
     localStorage.setItem('orbitwatch_token', sessionToken);
-    note.textContent = `Logged in as ${d.email}.`;
+    note.textContent = `Authenticated: ${d.email}`;
+    getWatchlist();
+    getAlertSettings();
   } else {
-    note.textContent = d.detail || 'Login failed.';
+    note.textContent = d.detail || 'Authentication failed.';
   }
+}
+
+async function getWatchlist() {
+  if (!sessionToken) return;
+  const wrap = document.getElementById('watchlist-wrap');
+  try {
+    const r = await fetch(`${API}/api/user/watchlist`, {
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    renderWatchlistTable(d.watchlist || []);
+  } catch(e) {
+    wrap.innerHTML = '<div class="loading">Watchlist fetch error.</div>';
+  }
+}
+
+function renderWatchlistTable(items) {
+  const wrap = document.getElementById('watchlist-wrap');
+  if (!items.length) {
+    wrap.innerHTML = '<div class="loading" style="padding:0.75rem 0; font-size:0.7rem">No satellites on watch.</div>';
+    return;
+  }
+
+  wrap.innerHTML = `<table class="sat-table" style="font-size:0.7rem">
+    <tbody>${items.map(item => {
+      // Find if we have conjunction data for this watched item
+      const danger = conjunctionEvents.some(e => e.sat1.includes(item.object_name) || e.sat2.includes(item.object_name));
+      const statusText = danger ? '<span style="color:var(--red); font-weight:bold;">ALERT</span>' : '<span style="color:var(--green)">CLEAR</span>';
+      return `
+        <tr>
+          <td><strong>${item.object_name}</strong></td>
+          <td>Radius: ${item.threshold_km}km</td>
+          <td style="text-align:right">${statusText}</td>
+        </tr>
+      `;
+    }).join('')}
+    </tbody>
+  </table>`;
 }
 
 async function saveWatchItem() {
   const objectName = document.getElementById('watch-object').value.trim();
   const note = document.getElementById('auth-note');
-  if (!sessionToken) { note.textContent = 'Login first to save a watchlist item.'; return; }
+  if (!sessionToken) { note.textContent = 'Login required to modify watchlists.'; return; }
+  if (!objectName) return;
   const r = await fetch(`${API}/api/user/watchlist`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}`},
-    body: JSON.stringify({object_name: objectName, threshold_km: Number(document.getElementById('threshold').value)})
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${sessionToken}`
+    },
+    body: JSON.stringify({
+      object_name: objectName,
+      threshold_km: Number(document.getElementById('threshold').value)
+    })
   });
   const d = await r.json();
-  note.textContent = d.watchlist ? `Watchlist saved: ${d.watchlist.length} item(s).` : d.detail || 'Save failed.';
+  if (d.watchlist) {
+    document.getElementById('watch-object').value = '';
+    renderWatchlistTable(d.watchlist);
+    note.textContent = 'Watchlist item logged.';
+  } else {
+    note.textContent = 'Watchlist save failed.';
+  }
 }
 
 async function sendTestAlert() {
@@ -528,12 +1194,435 @@ async function sendTestAlert() {
     body: JSON.stringify({email, threshold_km: Number(document.getElementById('threshold').value)})
   });
   const d = await r.json();
-  note.textContent = d.delivery?.sent ? 'Alert email sent.' : d.delivery?.reason || d.detail || 'Alert generated; email provider not configured.';
+  note.textContent = d.delivery?.sent ? 'Email alert dispatched.' : d.delivery?.reason || 'Alert generated offline.';
 }
 
-// Initial load
+async function getAlertSettings() {
+  if (!sessionToken) return;
+  const note = document.getElementById('alert-status-note');
+  try {
+    const r = await fetch(`${API}/api/alerts/settings`, {
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.email) {
+      document.getElementById('alert-bg-enable').checked = d.enabled;
+      document.getElementById('alert-target-email').value = d.email;
+      document.getElementById('alert-threshold-select').value = d.threshold_level || 'CRITICAL';
+      note.textContent = `Alert status: ${d.enabled ? 'ACTIVE' : 'INACTIVE'} (Threshold: ${d.threshold_level || 'CRITICAL'})`;
+      document.getElementById('custom-sat-note').textContent = 'Ready to launch new satellites.';
+    }
+  } catch(e) {
+    note.textContent = 'Failed to load alert settings.';
+  }
+}
+
+async function saveAlertSettings() {
+  const note = document.getElementById('alert-status-note');
+  if (!sessionToken) { note.textContent = 'Login required to modify alert routing.'; return; }
+  
+  const enabled = document.getElementById('alert-bg-enable').checked;
+  const email = document.getElementById('alert-target-email').value.trim();
+  const threshold_level = document.getElementById('alert-threshold-select').value;
+  
+  if (!email) { note.textContent = 'Subscription email is required.'; return; }
+  
+  try {
+    const r = await fetch(`${API}/api/alerts/settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({ enabled, email, threshold_level })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      note.textContent = `Preferences saved. Status: ${enabled ? 'ACTIVE' : 'INACTIVE'}`;
+      await fetchHistory(); // update diagnostic terminal
+    } else {
+      note.textContent = d.detail || 'Failed to save settings.';
+    }
+  } catch(e) {
+    note.textContent = 'Error communicating with settings service.';
+  }
+}
+
+async function triggerManualScan() {
+  const note = document.getElementById('alert-status-note');
+  if (!sessionToken) { note.textContent = 'Login required to execute threat scan.'; return; }
+  note.textContent = 'Executing real-time threat propagation scan...';
+  
+  try {
+    const r = await fetch(`${API}/api/alerts/scan`, {
+      method: 'POST',
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.ok) {
+      note.textContent = `Scan completed. Sent ${d.sent_count} new alerts.`;
+      await fetchHistory(); // update diagnostic terminal
+    } else {
+      note.textContent = d.detail || 'Scan execution failed.';
+    }
+  } catch(e) {
+    note.textContent = 'Scan communication timed out.';
+  }
+}
+
+
+// AI Co-pilot Chat Submission
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = '';
+
+  const container = document.getElementById('chat-messages');
+
+  // Add User message
+  const userMsgEl = document.createElement('div');
+  userMsgEl.className = 'chat-bubble user';
+  userMsgEl.innerHTML = `<strong>User</strong>${message}`;
+  container.appendChild(userMsgEl);
+  container.scrollTop = container.scrollHeight;
+
+  // Add Co-pilot Loading placeholder
+  const loadingEl = document.createElement('div');
+  loadingEl.className = 'chat-bubble ai';
+  loadingEl.innerHTML = `<strong>Co-pilot</strong><span style="opacity:0.6; animation: pulse 1s infinite">Calculating telemetry vectors...</span>`;
+  container.appendChild(loadingEl);
+  container.scrollTop = container.scrollHeight;
+
+  try {
+    const r = await fetch(`${API}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': sessionToken ? `Bearer ${sessionToken}` : ''
+      },
+      body: JSON.stringify({
+        message: message,
+        history: chatHistory,
+        group: getSelectedCatalog(),
+        threshold_km: Number(document.getElementById('threshold').value)
+      })
+    });
+    const d = await r.json();
+
+    container.removeChild(loadingEl);
+
+    // Add Copilot response
+    const aiMsgEl = document.createElement('div');
+    aiMsgEl.className = 'chat-bubble ai';
+    aiMsgEl.innerHTML = `<strong>Co-pilot</strong>${d.response}`;
+    container.appendChild(aiMsgEl);
+    container.scrollTop = container.scrollHeight;
+
+    // Maintain history limit
+    chatHistory.push({role: 'user', content: message});
+    chatHistory.push({role: 'assistant', content: d.response});
+    if (chatHistory.length > 20) chatHistory.shift();
+
+  } catch(e) {
+    container.removeChild(loadingEl);
+    const errEl = document.createElement('div');
+    errEl.className = 'chat-bubble ai';
+    errEl.innerHTML = `<strong>Co-pilot</strong>Communication loop timed out. Telemetry scanner offline.`;
+    container.appendChild(errEl);
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function populateSimConjunctionDropdown(events) {
+  const select = document.getElementById('sim-conjunction-select');
+  if (!select) return;
+  const currentVal = select.value;
+  
+  if (!events || !events.length) {
+    select.innerHTML = '<option value="">No active conjunctions selected</option>';
+    return;
+  }
+  
+  let options = `<option value="">Select a conjunction pair...</option>`;
+  events.forEach((e, idx) => {
+    options += `<option value="${idx}">${e.sat1} ↔ ${e.sat2} (${e.distance_km} km)</option>`;
+  });
+  select.innerHTML = options;
+  
+  if (currentVal && Number(currentVal) < events.length) {
+    select.value = currentVal;
+  }
+}
+
+function onSimConjunctionChange() {
+  const select = document.getElementById('sim-conjunction-select');
+  const satSelect = document.getElementById('sim-sat-select');
+  if (!select || !satSelect) return;
+  
+  const idx = select.value;
+  if (idx === "") {
+    satSelect.innerHTML = `
+      <option value="sat1">Satellite 1</option>
+      <option value="sat2">Satellite 2</option>
+    `;
+    return;
+  }
+  
+  const event = conjunctionEvents[Number(idx)];
+  satSelect.innerHTML = `
+    <option value="sat1">${event.sat1}</option>
+    <option value="sat2">${event.sat2}</option>
+  `;
+}
+
+function drawSimulationChart(timeSeriesData, burnHoursBeforeTca) {
+  const canvas = document.getElementById('sim-chart-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(dpr, dpr);
+  
+  const displayWidth = rect.width;
+  const displayHeight = rect.height;
+  
+  const margin = { top: 15, right: 15, bottom: 22, left: 35 };
+  const graphWidth = displayWidth - margin.left - margin.right;
+  const graphHeight = displayHeight - margin.top - margin.bottom;
+  
+  if (!timeSeriesData || timeSeriesData.length === 0) return;
+  
+  let maxVal = 10;
+  timeSeriesData.forEach(pt => {
+    if (pt.original_distance_km !== null) maxVal = Math.max(maxVal, pt.original_distance_km);
+    if (pt.simulated_distance_km !== null) maxVal = Math.max(maxVal, pt.simulated_distance_km);
+  });
+  maxVal = maxVal * 1.15;
+  
+  const originalPoints = [];
+  const simulatedPoints = [];
+  const numSteps = timeSeriesData.length - 1;
+  
+  timeSeriesData.forEach((pt, i) => {
+    const x = margin.left + (i / numSteps) * graphWidth;
+    if (pt.original_distance_km !== null) {
+      const y = margin.top + graphHeight - (pt.original_distance_km / maxVal) * graphHeight;
+      originalPoints.push({ x, y });
+    }
+    if (pt.simulated_distance_km !== null) {
+      const y = margin.top + graphHeight - (pt.simulated_distance_km / maxVal) * graphHeight;
+      simulatedPoints.push({ x, y });
+    }
+  });
+  
+  ctx.strokeStyle = 'rgba(55, 65, 81, 0.25)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  
+  const yTicks = 3;
+  ctx.font = "8px 'Orbitron', monospace";
+  ctx.fillStyle = "rgba(156, 163, 175, 0.7)";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i <= yTicks; i++) {
+    const val = (maxVal * i) / yTicks;
+    const y = margin.top + graphHeight - (i / yTicks) * graphHeight;
+    
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(margin.left + graphWidth, y);
+    ctx.stroke();
+    
+    let label = Math.round(val).toString();
+    if (val >= 1000) {
+      label = (val / 1000).toFixed(1) + 'k';
+    }
+    ctx.fillText(label, margin.left - 6, y);
+  }
+  
+  const xTicks = 4;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for (let i = 0; i <= xTicks; i++) {
+    const fraction = i / xTicks;
+    const x = margin.left + fraction * graphWidth;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, margin.top);
+    ctx.lineTo(x, margin.top + graphHeight);
+    ctx.stroke();
+    
+    const hours = (fraction - 1) * burnHoursBeforeTca;
+    let label = hours.toFixed(1) + 'h';
+    if (i === xTicks) {
+      label = "TCA";
+    } else if (i === 0) {
+      label = "Burn";
+    }
+    ctx.fillText(label, x, margin.top + graphHeight + 6);
+  }
+  ctx.setLineDash([]);
+  
+  const drawPath = (points, strokeColor, glowColor) => {
+    if (points.length === 0) return;
+    
+    ctx.strokeStyle = glowColor;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+    
+    [points[0], points[points.length - 1]].forEach(pt => {
+      ctx.fillStyle = strokeColor;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  };
+  
+  drawPath(originalPoints, '#f43f5e', 'rgba(244, 63, 94, 0.25)');
+  drawPath(simulatedPoints, '#10b981', 'rgba(16, 185, 129, 0.25)');
+}
+
+async function runManeuverSimulation() {
+  const select = document.getElementById('sim-conjunction-select');
+  if (!select || select.value === "") {
+    alert("Please select an active conjunction target to simulate a burn.");
+    return;
+  }
+  
+  const event = conjunctionEvents[Number(select.value)];
+  const payload = {
+    sat1_name: event.sat1,
+    sat2_name: event.sat2,
+    burn_satellite: document.getElementById('sim-sat-select').value,
+    burn_direction: document.getElementById('sim-direction-select').value,
+    delta_v_m_s: Number(document.getElementById('sim-dv-slider').value),
+    burn_hours_before_tca: Number(document.getElementById('sim-lead-select').value),
+    group: getSelectedCatalog()
+  };
+  
+  const resultsBox = document.getElementById('sim-results-box');
+  const badge = document.getElementById('sim-status-badge');
+  
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': sessionToken ? `Bearer ${sessionToken}` : ''
+    };
+    const r = await fetch(`${API}/api/maneuver/simulate`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    
+    if (d.outcome) {
+      resultsBox.style.display = 'block';
+      badge.className = `risk-badge risk-${d.outcome === 'COLLISION AVOIDED' ? 'LOW' : 'CRITICAL'}`;
+      badge.textContent = d.outcome;
+      document.getElementById('sim-orig-dist').textContent = d.original_distance_km + ' km';
+      document.getElementById('sim-new-dist').textContent = d.simulated_distance_km + ' km';
+      document.getElementById('sim-delta-dist').textContent = (d.delta_distance_km > 0 ? '+' : '') + d.delta_distance_km + ' km';
+      
+      drawSimulationChart(d.time_series, d.burn_hours_before_tca);
+      
+      await fetchHistory();
+    } else {
+      alert("Simulation error: " + (d.detail || "Invalid parameters"));
+    }
+  } catch (e) {
+    alert("Failed to communicate with simulation service.");
+  }
+}
+
+async function launchCustomSatellite() {
+  const note = document.getElementById('custom-sat-note');
+  if (!sessionToken) { note.textContent = 'Login required to launch satellites.'; return; }
+  
+  const name = document.getElementById('custom-sat-name').value.trim();
+  const country = document.getElementById('custom-sat-country').value.trim() || 'USA';
+  const semi_major_axis_km = Number(document.getElementById('custom-sat-a').value);
+  const eccentricity = Number(document.getElementById('custom-sat-e').value);
+  const inclination_deg = Number(document.getElementById('custom-sat-i').value);
+  const raan_deg = Number(document.getElementById('custom-sat-raan').value);
+  const mean_anomaly_deg = Number(document.getElementById('custom-sat-ma').value);
+  const arg_perigee_deg = Number(document.getElementById('custom-sat-argp').value);
+  
+  if (!name) { note.textContent = 'Satellite name is required.'; return; }
+  if (semi_major_axis_km < 6500 || semi_major_axis_km > 50000) { note.textContent = 'Semi-major axis must be between 6500 and 50000 km.'; return; }
+  if (eccentricity < 0 || eccentricity >= 1.0) { note.textContent = 'Eccentricity must be between 0 and 0.99.'; return; }
+  
+  note.textContent = 'Calculating orbital vectors & launching...';
+  
+  try {
+    const r = await fetch(`${API}/api/user/custom-satellites`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({
+        name,
+        semi_major_axis_km,
+        eccentricity,
+        inclination_deg,
+        raan_deg,
+        arg_perigee_deg,
+        mean_anomaly_deg,
+        country
+      })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      note.textContent = `Launched ${d.satellite.name}! ID: ${d.satellite.norad_id}`;
+      document.getElementById('custom-sat-name').value = '';
+      await refreshAll();
+    } else {
+      note.textContent = d.detail || 'Launch failed.';
+    }
+  } catch(e) {
+    note.textContent = 'Error contacting launch service.';
+  }
+}
+
+// Initial animation & rendering loops
+function animate() {
+  // Smoothly rotate Earth sphere when not dragging
+  rotationX += (targetRotationX - rotationX) * 0.1;
+  rotationY += (targetRotationY - rotationY) * 0.1;
+
+  if (!isDragging) {
+    targetRotationX += 0.0006;
+  }
+
+  renderOrbit();
+  requestAnimationFrame(animate);
+}
+
+// Initial trigger
 refreshAll();
-// Auto-refresh every 30s
+animate();
+
+// Auto-sync dashboard metrics every 30s
 setInterval(refreshAll, 30000);
 </script>
 </body>
