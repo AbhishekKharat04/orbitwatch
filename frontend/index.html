@@ -191,6 +191,15 @@
   
   footer { border-top: 1px solid var(--border); padding: 1.5rem 0; text-align: center; font-size: 0.7rem; color: var(--muted); background: rgba(3, 7, 18, 0.9); }
 
+  .flash-green {
+    animation: flashGreen 2s infinite;
+    display: inline-block;
+  }
+  @keyframes flashGreen {
+    0%, 100% { color: var(--green); filter: drop-shadow(0 0 2px var(--green)); }
+    50% { color: #55efc4; filter: drop-shadow(0 0 6px #55efc4); }
+  }
+
 </style>
 </head>
 <body>
@@ -411,6 +420,8 @@
             <div>Original Miss Distance: <strong id="sim-orig-dist">--</strong></div>
             <div>Simulated Separation: <strong id="sim-new-dist" style="color: var(--green);">--</strong></div>
             <div>Miss Distance Delta: <strong id="sim-delta-dist" style="color: var(--accent);">--</strong></div>
+            <div>Original Collision Risk: <strong id="sim-orig-prob">--</strong></div>
+            <div>Simulated Collision Risk: <strong id="sim-new-prob" style="color: var(--green);">--</strong></div>
             <div id="sim-solve-advice" style="display: none; margin-top: 0.45rem; padding: 0.4rem 0.55rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; color: #a7f3d0; font-size: 0.7rem; line-height: 1.35;"></div>
             <div style="margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
               <div style="font-family: 'Orbitron', sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
@@ -528,6 +539,35 @@
             <div style="display: flex; flex-direction: column; gap: 0.68rem;">
               <label style="font-size: 0.68rem; color: var(--muted);">Mean Anom (°):</label>
               <input id="custom-sat-ma" type="number" step="0.1" value="0.0" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-size: 0.75rem; width: 100%;">
+            </div>
+          </div>
+          
+          <!-- Tracking Uncertainty Inputs -->
+          <div style="display: flex; flex-direction: column; gap: 0.45rem; padding: 0.5rem; border: 1px dashed var(--border); border-radius: 6px; background: rgba(255,255,255,0.01);">
+            <div style="font-size: 0.72rem; color: var(--accent); font-family: 'Orbitron', sans-serif; font-weight: bold;">Tracking Uncertainty (Covariance)</div>
+            
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.68rem;">
+                <span style="color: var(--muted);">Radial Error:</span>
+                <span id="custom-sat-r-val" style="color: var(--accent); font-weight: bold;">100 m</span>
+              </div>
+              <input type="range" min="10" max="1000" step="10" value="100" id="custom-sat-r-err" oninput="document.getElementById('custom-sat-r-val').textContent = this.value + ' m'">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.68rem;">
+                <span style="color: var(--muted);">Along-track Error (Transverse):</span>
+                <span id="custom-sat-t-val" style="color: var(--accent); font-weight: bold;">500 m</span>
+              </div>
+              <input type="range" min="10" max="3000" step="10" value="500" id="custom-sat-t-err" oninput="document.getElementById('custom-sat-t-val').textContent = this.value + ' m'">
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.68rem;">
+                <span style="color: var(--muted);">Cross-track Error (Normal):</span>
+                <span id="custom-sat-n-val" style="color: var(--accent); font-weight: bold;">200 m</span>
+              </div>
+              <input type="range" min="10" max="2000" step="10" value="200" id="custom-sat-n-err" oninput="document.getElementById('custom-sat-n-val').textContent = this.value + ' m'">
             </div>
           </div>
           
@@ -753,9 +793,17 @@ function renderIntegrations(integrations) {
 
 function getDemoConjunctions() {
   return [
-    {sat1:"ISS (ZARYA)",sat2:"DEBRIS-A",distance_km:0.72,risk_level:"CRITICAL",alert:"CRITICAL: ISS (ZARYA) and DEBRIS-A at 0.72 km. Burn assessment needed.",sat1_alt:408,sat2_alt:407,tca_hours_from_now: 2.1},
-    {sat1:"STARLINK-1234",sat2:"COSMOS 2251 DEB",distance_km:14.2,risk_level:"MEDIUM",alert:"MEDIUM: Starlink alignment close. Continual telemetry scan active.",sat1_alt:550,sat2_alt:811,tca_hours_from_now: 14.5},
+    {sat1:"ISS (ZARYA)",sat2:"DEBRIS-A",distance_km:0.72,risk_level:"CRITICAL",alert:"CRITICAL: ISS (ZARYA) and DEBRIS-A at 0.72 km. Burn assessment needed.",sat1_alt:408,sat2_alt:407,tca_hours_from_now: 2.1, collision_probability: 1.5e-3, collision_probability_str: "1 in 667"},
+    {sat1:"STARLINK-1234",sat2:"COSMOS 2251 DEB",distance_km:14.2,risk_level:"MEDIUM",alert:"MEDIUM: Starlink alignment close. Continual telemetry scan active.",sat1_alt:550,sat2_alt:811,tca_hours_from_now: 14.5, collision_probability: 4.2e-6, collision_probability_str: "1 in 238,095"},
   ];
+}
+
+function getPcColor(prob) {
+  if (prob === undefined || prob === null) return 'var(--text)';
+  if (prob >= 1e-4) return 'var(--red)';
+  if (prob >= 1e-5) return 'var(--orange)';
+  if (prob >= 1e-6) return 'var(--yellow)';
+  return 'var(--green)';
 }
 
 function renderConjunctions(events) {
@@ -771,7 +819,7 @@ function renderConjunctions(events) {
         <span class="conj-sats">${e.sat1} ↔ ${e.sat2}</span>
         <span class="risk-badge risk-${e.risk_level}">${e.risk_level}</span>
       </div>
-      <div class="conj-dist">Min Dist: <strong>${e.distance_km} km</strong> • TCA: ${e.tca_hours_from_now} hrs</div>
+      <div class="conj-dist">Min Dist: <strong>${e.distance_km} km</strong> ${e.collision_probability_str ? `• Risk: <span style="font-weight:bold; color:${getPcColor(e.collision_probability)}">${e.collision_probability_str}</span>` : ''} • TCA: ${e.tca_hours_from_now} hrs</div>
       <div class="conj-alert">${e.alert}</div>
     </div>
   `).join('');
@@ -1313,9 +1361,14 @@ function renderWatchlistTable(items) {
 
   wrap.innerHTML = `<table class="sat-table" style="font-size:0.7rem">
     <tbody>${items.map(item => {
-      // Find if we have conjunction data for this watched item
-      const danger = conjunctionEvents.some(e => e.sat1.includes(item.object_name) || e.sat2.includes(item.object_name));
-      const statusText = danger ? '<span style="color:var(--red); font-weight:bold;">ALERT</span>' : '<span style="color:var(--green)">CLEAR</span>';
+      const matchEvent = conjunctionEvents.find(e => e.sat1 === item.object_name || e.sat2 === item.object_name);
+      let statusText = '<span style="color:var(--green)">CLEAR</span>';
+      if (matchEvent) {
+        const pcStr = matchEvent.collision_probability_str || '';
+        const pcVal = matchEvent.collision_probability;
+        const color = getPcColor(pcVal);
+        statusText = `<span style="color:var(--red); font-weight:bold;">ALERT</span><span style="display:block; font-size:0.6rem; color:${color}; font-weight:600;">${pcStr}</span>`;
+      }
       return `
         <tr>
           <td><strong>${item.object_name}</strong></td>
@@ -1716,6 +1769,28 @@ async function runManeuverSimulation(isAutoSolved = false) {
       document.getElementById('sim-new-dist').textContent = d.simulated_distance_km + ' km';
       document.getElementById('sim-delta-dist').textContent = (d.delta_distance_km > 0 ? '+' : '') + d.delta_distance_km + ' km';
       
+      const origProbStr = d.original_collision_probability_str || '--';
+      const simProbStr = d.simulated_collision_probability_str || '--';
+      const origProbVal = d.original_collision_probability;
+      const simProbVal = d.simulated_collision_probability;
+      
+      const origProbEl = document.getElementById('sim-orig-prob');
+      const newProbEl = document.getElementById('sim-new-prob');
+      
+      if (origProbEl) {
+        origProbEl.textContent = origProbStr;
+        origProbEl.style.color = getPcColor(origProbVal);
+      }
+      if (newProbEl) {
+        newProbEl.textContent = simProbStr;
+        newProbEl.style.color = getPcColor(simProbVal);
+        if (simProbVal < 1e-6) {
+          newProbEl.classList.add('flash-green');
+        } else {
+          newProbEl.classList.remove('flash-green');
+        }
+      }
+      
       drawSimulationChart(d.time_series, d.burn_hours_before_tca);
       
       await fetchHistory();
@@ -1812,7 +1887,10 @@ async function launchCustomSatellite() {
         raan_deg,
         arg_perigee_deg,
         mean_anomaly_deg,
-        country
+        country,
+        radial_error_m: Number(document.getElementById('custom-sat-r-err').value),
+        transverse_error_m: Number(document.getElementById('custom-sat-t-err').value),
+        normal_error_m: Number(document.getElementById('custom-sat-n-err').value)
       })
     });
     const d = await r.json();

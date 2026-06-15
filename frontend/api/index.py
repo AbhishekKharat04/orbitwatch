@@ -428,10 +428,10 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
     events = []
     nearest_candidates = []
 
-    # Cache for fine propagation: fine_cache[sat_index][(step_idx, k)] = position
+    # Cache for fine propagation: fine_cache[sat_index][(step_idx, k)] = (pos, vel)
     fine_cache = [{} for _ in range(num_sats)]
 
-    def get_fine_position(sat_idx, step_idx, k):
+    def get_fine_state(sat_idx, step_idx, k):
         cache_key = (step_idx, k)
         if cache_key in fine_cache[sat_idx]:
             return fine_cache[sat_idx][cache_key]
@@ -445,15 +445,15 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
             r0 = [item["init_x"], item["init_y"], item["init_z"]]
             v0 = [item["init_vx"], item["init_vy"], item["init_vz"]]
             dt_sec = (dt - launch_time).total_seconds()
-            pos, _ = propagate_keplerian_rk4(r0, v0, dt_sec)
+            pos, vel = propagate_keplerian_rk4(r0, v0, dt_sec)
         else:
             jd, fr = jday(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second)
-            err, pos, _ = sat_rec.sgp4(jd, fr)
+            err, pos, vel = sat_rec.sgp4(jd, fr)
             if err != 0:
-                pos = None
+                pos, vel = None, None
 
-        fine_cache[sat_idx][cache_key] = pos
-        return pos
+        fine_cache[sat_idx][cache_key] = (pos, vel)
+        return pos, vel
 
     for i, j, _, step_idx in conjunction_candidates:
         sat1_name, _, item1 = sat_data[i]
@@ -464,18 +464,23 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
         fine_tca = center_dt
         fine_pos1 = None
         fine_pos2 = None
+        fine_vel1 = None
+        fine_vel2 = None
 
         for k in range(-22, 23):
-            pos1 = get_fine_position(i, step_idx, k)
-            pos2 = get_fine_position(j, step_idx, k)
-
-            if pos1 is not None and pos2 is not None:
+            pos_vel1 = get_fine_state(i, step_idx, k)
+            pos_vel2 = get_fine_state(j, step_idx, k)
+            if pos_vel1[0] is not None and pos_vel2[0] is not None:
+                pos1, vel1 = pos_vel1
+                pos2, vel2 = pos_vel2
                 d_sq = (pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2 + (pos1[2] - pos2[2]) ** 2
                 if d_sq < fine_min_dist_sq:
                     fine_min_dist_sq = d_sq
                     fine_tca = center_dt + timedelta(minutes=k * 2)
                     fine_pos1 = pos1
                     fine_pos2 = pos2
+                    fine_vel1 = vel1
+                    fine_vel2 = vel2
 
         if fine_min_dist_sq == float("inf"):
             continue
@@ -486,6 +491,66 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
 
         risk = risk_level(fine_min_dist)
         tca_from_now = (fine_tca - now).total_seconds() / 3600.0
+
+        def get_rtn_sigmas(item):
+            if item.get("is_custom"):
+                sig_r = item.get("radial_error_m", 100.0) / 1000.0
+                sig_t = item.get("transverse_error_m", 500.0) / 1000.0
+                sig_n = item.get("normal_error_m", 200.0) / 1000.0
+            else:
+                obj_type = item.get("object_type", "PAYLOAD").upper()
+                if "DEBRIS" in obj_type or "BODY" in obj_type or "ROCKET" in obj_type:
+                    sig_r = 0.25
+                    sig_t = 1.2
+                    sig_n = 0.5
+                else:
+                    sig_r = 0.1
+                    sig_t = 0.5
+                    sig_n = 0.2
+            return sig_r, sig_t, sig_n
+
+        sig_r1, sig_t1, sig_n1 = get_rtn_sigmas(item1)
+        C_eci1 = rotate_covariance_rtn_to_eci(fine_pos1, fine_vel1, sig_r1, sig_t1, sig_n1)
+
+        sig_r2, sig_t2, sig_n2 = get_rtn_sigmas(item2)
+        C_eci2 = rotate_covariance_rtn_to_eci(fine_pos2, fine_vel2, sig_r2, sig_t2, sig_n2)
+
+        C_eci = [[C_eci1[a][b] + C_eci2[a][b] for b in range(3)] for a in range(3)]
+
+        rel_pos = [fine_pos2[0] - fine_pos1[0], fine_pos2[1] - fine_pos1[1], fine_pos2[2] - fine_pos1[2]]
+        rel_vel = [fine_vel2[0] - fine_vel1[0], fine_vel2[1] - fine_vel1[1], fine_vel2[2] - fine_vel1[2]]
+
+        v_mag = math.sqrt(rel_vel[0]**2 + rel_vel[1]**2 + rel_vel[2]**2)
+        if v_mag == 0:
+            prob = 0.0
+        else:
+            uz = [rel_vel[0]/v_mag, rel_vel[1]/v_mag, rel_vel[2]/v_mag]
+            cx = rel_vel[1]*rel_pos[2] - rel_vel[2]*rel_pos[1]
+            cy = rel_vel[2]*rel_pos[0] - rel_vel[0]*rel_pos[2]
+            cz = rel_vel[0]*rel_pos[1] - rel_vel[1]*rel_pos[0]
+            c_mag = math.sqrt(cx**2 + cy**2 + cz**2)
+
+            if c_mag < 1e-9:
+                if abs(uz[0]) > 0.9:
+                    uy = [0.0, 1.0, 0.0]
+                else:
+                    uy = [1.0, 0.0, 0.0]
+                dot = uy[0]*uz[0] + uy[1]*uz[1] + uy[2]*uz[2]
+                uy = [uy[a] - dot*uz[a] for a in range(3)]
+                uy_mag = math.sqrt(uy[0]**2 + uy[1]**2 + uy[2]**2)
+                uy = [x / uy_mag for x in uy]
+            else:
+                uy = [cx / c_mag, cy / c_mag, cz / c_mag]
+
+            ux = [uy[1]*uz[2] - uy[2]*uz[1], uy[2]*uz[0] - uy[0]*uz[2], uy[0]*uz[1] - uy[1]*uz[0]]
+
+            xm = rel_pos[0]*ux[0] + rel_pos[1]*ux[1] + rel_pos[2]*ux[2]
+            ym = rel_pos[0]*uy[0] + rel_pos[1]*uy[1] + rel_pos[2]*uy[2]
+
+            C_2d = project_covariance_to_encounter_plane(C_eci, ux, uy)
+            prob = calculate_probability_of_collision(xm, ym, C_2d, 0.015)
+
+        prob_str = format_probability_str(prob)
 
         event = {
             "sat1": sat1_name,
@@ -503,8 +568,11 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
             "sat2_country": item2["country"],
             "sat2_type": item2["object_type"],
             "sat1_id": item1["norad_id"],
-            "sat2_id": item2["norad_id"]
+            "sat2_id": item2["norad_id"],
+            "collision_probability": prob,
+            "collision_probability_str": prob_str
         }
+
 
         if fine_min_dist <= threshold_km:
             events.append(event)
@@ -697,6 +765,166 @@ def verify_session_and_role(authorization: str | None, required_roles: list[str]
             detail=f"Role '{role}' is unauthorized for this action. Required: {', '.join(required_roles)}"
         )
     return email
+
+
+def rtn_to_eci_rotation(r: list[float], v: list[float]) -> list[list[float]]:
+    r_mag = math.sqrt(r[0]**2 + r[1]**2 + r[2]**2)
+    if r_mag == 0:
+        return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    uR = [x / r_mag for x in r]
+    
+    hx = r[1]*v[2] - r[2]*v[1]
+    hy = r[2]*v[0] - r[0]*v[2]
+    hz = r[0]*v[1] - r[1]*v[0]
+    h_mag = math.sqrt(hx**2 + hy**2 + hz**2)
+    if h_mag == 0:
+        return [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    uN = [hx / h_mag, hy / h_mag, hz / h_mag]
+    
+    uTx = uN[1]*uR[2] - uN[2]*uR[1]
+    uTy = uN[2]*uR[0] - uN[0]*uR[2]
+    uTz = uN[0]*uR[1] - uN[1]*uR[0]
+    uT = [uTx, uTy, uTz]
+    
+    return [
+        [uR[0], uT[0], uN[0]],
+        [uR[1], uT[1], uN[1]],
+        [uR[2], uT[2], uN[2]]
+    ]
+
+
+def rotate_covariance_rtn_to_eci(r: list[float], v: list[float], r_err_km: float, t_err_km: float, n_err_km: float) -> list[list[float]]:
+    rot = rtn_to_eci_rotation(r, v)
+    sigmas = [r_err_km**2, t_err_km**2, n_err_km**2]
+    cov = [[0.0]*3 for _ in range(3)]
+    for i in range(3):
+        for j in range(3):
+            cov[i][j] = sum(rot[i][k] * sigmas[k] * rot[j][k] for k in range(3))
+    return cov
+
+
+def project_covariance_to_encounter_plane(C_eci: list[list[float]], ux: list[float], uy: list[float]) -> list[list[float]]:
+    C_2d = [[0.0]*2 for _ in range(2)]
+    P = [ux, uy]
+    for i in range(2):
+        for j in range(2):
+            val = 0.0
+            for a in range(3):
+                for b in range(3):
+                    val += P[i][a] * C_eci[a][b] * P[j][b]
+            C_2d[i][j] = val
+    return C_2d
+
+
+def calculate_probability_of_collision(xm: float, ym: float, C_2d: list[list[float]], R_km: float = 0.015) -> float:
+    det = C_2d[0][0]*C_2d[1][1] - C_2d[0][1]*C_2d[1][0]
+    if det <= 0:
+        dist = math.sqrt(xm**2 + ym**2)
+        return 1.0 if dist <= R_km else 0.0
+        
+    inv00 = C_2d[1][1] / det
+    inv01 = -C_2d[0][1] / det
+    inv11 = C_2d[0][0] / det
+    
+    factor = 1.0 / (2.0 * math.pi * math.sqrt(det))
+    
+    r_steps = 10
+    theta_steps = 20
+    total_integral = 0.0
+    
+    dr = R_km / r_steps
+    dtheta = (2.0 * math.pi) / theta_steps
+    
+    for ir in range(r_steps):
+        r_val = (ir + 0.5) * dr
+        for it in range(theta_steps):
+            theta_val = it * dtheta
+            x = r_val * math.cos(theta_val)
+            y = r_val * math.sin(theta_val)
+            dx = x - xm
+            dy = y - ym
+            quad = dx*dx*inv00 + 2.0*dx*dy*inv01 + dy*dy*inv11
+            pdf = factor * math.exp(-0.5 * quad)
+            total_integral += pdf * r_val * dr * dtheta
+            
+    return min(1.0, max(0.0, total_integral))
+
+
+def compute_pc_between_states(pos1: list[float], vel1: list[float], item1: dict[str, Any], pos2: list[float], vel2: list[float], item2: dict[str, Any]) -> float:
+    def get_rtn_sigmas(item):
+        if item.get("is_custom") or "radial_error_m" in item:
+            sig_r = item.get("radial_error_m", 100.0) / 1000.0
+            sig_t = item.get("transverse_error_m", 500.0) / 1000.0
+            sig_n = item.get("normal_error_m", 200.0) / 1000.0
+        else:
+            obj_type = item.get("object_type", "PAYLOAD").upper()
+            if "DEBRIS" in obj_type or "BODY" in obj_type or "ROCKET" in obj_type:
+                sig_r = 0.25
+                sig_t = 1.2
+                sig_n = 0.5
+            else:
+                sig_r = 0.1
+                sig_t = 0.5
+                sig_n = 0.2
+        return sig_r, sig_t, sig_n
+
+    sig_r1, sig_t1, sig_n1 = get_rtn_sigmas(item1)
+    C_eci1 = rotate_covariance_rtn_to_eci(pos1, vel1, sig_r1, sig_t1, sig_n1)
+
+    sig_r2, sig_t2, sig_n2 = get_rtn_sigmas(item2)
+    C_eci2 = rotate_covariance_rtn_to_eci(pos2, vel2, sig_r2, sig_t2, sig_n2)
+
+    C_eci = [[C_eci1[a][b] + C_eci2[a][b] for b in range(3)] for a in range(3)]
+
+    rel_pos = [pos2[0] - pos1[0], pos2[1] - pos1[1], pos2[2] - pos1[2]]
+    rel_vel = [vel2[0] - vel1[0], vel2[1] - vel1[1], vel2[2] - vel1[2]]
+
+    v_mag = math.sqrt(rel_vel[0]**2 + rel_vel[1]**2 + rel_vel[2]**2)
+    if v_mag == 0:
+        return 0.0
+
+    uz = [rel_vel[0]/v_mag, rel_vel[1]/v_mag, rel_vel[2]/v_mag]
+    cx = rel_vel[1]*rel_pos[2] - rel_vel[2]*rel_pos[1]
+    cy = rel_vel[2]*rel_pos[0] - rel_vel[0]*rel_pos[2]
+    cz = rel_vel[0]*rel_pos[1] - rel_vel[1]*rel_pos[0]
+    c_mag = math.sqrt(cx**2 + cy**2 + cz**2)
+
+    if c_mag < 1e-9:
+        if abs(uz[0]) > 0.9:
+            uy = [0.0, 1.0, 0.0]
+        else:
+            uy = [1.0, 0.0, 0.0]
+        dot = uy[0]*uz[0] + uy[1]*uz[1] + uy[2]*uz[2]
+        uy = [uy[a] - dot*uz[a] for a in range(3)]
+        uy_mag = math.sqrt(uy[0]**2 + uy[1]**2 + uy[2]**2)
+        uy = [x / uy_mag for x in uy]
+    else:
+        uy = [cx / c_mag, cy / c_mag, cz / c_mag]
+
+    ux = [uy[1]*uz[2] - uy[2]*uz[1], uy[2]*uz[0] - uy[0]*uz[2], uy[0]*uz[1] - uy[1]*uz[0]]
+
+    xm = rel_pos[0]*ux[0] + rel_pos[1]*ux[1] + rel_pos[2]*ux[2]
+    ym = rel_pos[0]*uy[0] + rel_pos[1]*uy[1] + rel_pos[2]*uy[2]
+
+    C_2d = project_covariance_to_encounter_plane(C_eci, ux, uy)
+    return calculate_probability_of_collision(xm, ym, C_2d, 0.015)
+
+
+def format_probability_str(prob: float) -> str:
+    if prob >= 1.0:
+        return "1 in 1 (100.0%)"
+    elif prob <= 0:
+        return "0.0%"
+    else:
+        reciprocal = int(round(1.0 / prob))
+        if reciprocal >= 1000000000:
+            return f"1 in {reciprocal/1000000000:.1f}B"
+        elif reciprocal >= 1000000:
+            return f"1 in {reciprocal/1000000:.1f}M"
+        else:
+            return f"1 in {reciprocal:,}"
+
+
 
 
 
@@ -1172,31 +1400,39 @@ def simulate_avoidance_maneuver(
 ) -> dict[str, Any]:
     email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
 
-            
     custom_sats = get_custom_satellites_for_user(email)
     
     sat1_custom = next((s for s in custom_sats if s["name"] == payload.sat1_name), None)
     sat2_custom = next((s for s in custom_sats if s["name"] == payload.sat2_name), None)
     
-    sat1_tle = None
-    sat2_tle = None
-    if not sat1_custom:
-        tles, _ = fetch_celestrak_tles(payload.group, payload.limit)
-        sat1_tle = next((t for t in tles if t[0] == payload.sat1_name), None)
-        if not sat1_tle:
-            sat1_tle = next((t for t in DEMO_TLES if t[0] == payload.sat1_name), None)
-            
-    if not sat2_custom:
-        tles, _ = fetch_celestrak_tles(payload.group, payload.limit)
-        sat2_tle = next((t for t in tles if t[0] == payload.sat2_name), None)
-        if not sat2_tle:
-            sat2_tle = next((t for t in DEMO_TLES if t[0] == payload.sat2_name), None)
-            
-    if (not sat1_custom and not sat1_tle) or (not sat2_custom and not sat2_tle):
+    sat1_item = None
+    sat2_item = None
+    
+    if sat1_custom:
+        sat1_item = sat1_custom
+    else:
+        catalog, _ = fetch_telemetry_catalog(payload.group, payload.limit)
+        sat1_item = next((item for item in catalog if item["name"] == payload.sat1_name), None)
+        if not sat1_item:
+            demo_item = next((t for t in DEMO_TLES if t[0] == payload.sat1_name), None)
+            if demo_item:
+                sat1_item = map_celestrak_to_dict(demo_item[0], demo_item[1], demo_item[2])
+                
+    if sat2_custom:
+        sat2_item = sat2_custom
+    else:
+        catalog, _ = fetch_telemetry_catalog(payload.group, payload.limit)
+        sat2_item = next((item for item in catalog if item["name"] == payload.sat2_name), None)
+        if not sat2_item:
+            demo_item = next((t for t in DEMO_TLES if t[0] == payload.sat2_name), None)
+            if demo_item:
+                sat2_item = map_celestrak_to_dict(demo_item[0], demo_item[1], demo_item[2])
+                
+    if not sat1_item or not sat2_item:
         raise HTTPException(status_code=404, detail="One or both satellites not found in catalog")
         
-    sat1_rec = Satrec.twoline2rv(sat1_tle[1], sat1_tle[2]) if sat1_tle else None
-    sat2_rec = Satrec.twoline2rv(sat2_tle[1], sat2_tle[2]) if sat2_tle else None
+    sat1_rec = Satrec.twoline2rv(sat1_item["tle1"], sat1_item["tle2"]) if not sat1_custom else None
+    sat2_rec = Satrec.twoline2rv(sat2_item["tle1"], sat2_item["tle2"]) if not sat2_custom else None
     
     now = datetime.now(timezone.utc)
     min_dist = float("inf")
@@ -1264,6 +1500,29 @@ def simulate_avoidance_maneuver(
                 fine_min_dist = d
                 tca_precise_dt = dt
                 
+    # Re-propagate to get original states (pos, vel) at precise TCA
+    jd_tca, fr_tca = jday(tca_precise_dt.year, tca_precise_dt.month, tca_precise_dt.day, tca_precise_dt.hour, tca_precise_dt.minute, tca_precise_dt.second)
+    if sat1_custom:
+        launch_time = datetime.fromisoformat(sat1_custom["launch_time"])
+        r0 = [sat1_custom["init_x"], sat1_custom["init_y"], sat1_custom["init_z"]]
+        v0 = [sat1_custom["init_vx"], sat1_custom["init_vy"], sat1_custom["init_vz"]]
+        dt_sec = (tca_precise_dt - launch_time).total_seconds()
+        pos1_tca, vel1_tca = propagate_keplerian_rk4(r0, v0, dt_sec)
+    else:
+        _, pos1_tca, vel1_tca = sat1_rec.sgp4(jd_tca, fr_tca)
+
+    if sat2_custom:
+        launch_time = datetime.fromisoformat(sat2_custom["launch_time"])
+        r0 = [sat2_custom["init_x"], sat2_custom["init_y"], sat2_custom["init_z"]]
+        v0 = [sat2_custom["init_vx"], sat2_custom["init_vy"], sat2_custom["init_vz"]]
+        dt_sec = (tca_precise_dt - launch_time).total_seconds()
+        pos2_tca, vel2_tca = propagate_keplerian_rk4(r0, v0, dt_sec)
+    else:
+        _, pos2_tca, vel2_tca = sat2_rec.sgp4(jd_tca, fr_tca)
+        
+    if pos1_tca is None or pos2_tca is None or vel1_tca is None or vel2_tca is None:
+        raise HTTPException(status_code=400, detail="Could not propagate orbital states to precise TCA")
+
     t_burn = tca_precise_dt - timedelta(hours=payload.burn_hours_before_tca)
     if t_burn < now:
         t_burn = now
@@ -1317,36 +1576,31 @@ def simulate_avoidance_maneuver(
     v_b_new = [v_b[i] + dv_km_s * u[i] for i in range(3)]
     
     dt_seconds = (tca_precise_dt - t_burn).total_seconds()
-    r_burned_tca, _ = propagate_keplerian_rk4(r_b, v_b_new, dt_seconds)
+    r_burned_tca, v_burned_tca = propagate_keplerian_rk4(r_b, v_b_new, dt_seconds)
     
     if is_sat1:
-        if sat2_custom:
-            launch_time = datetime.fromisoformat(sat2_custom["launch_time"])
-            r0 = [sat2_custom["init_x"], sat2_custom["init_y"], sat2_custom["init_z"]]
-            v0 = [sat2_custom["init_vx"], sat2_custom["init_vy"], sat2_custom["init_vz"]]
-            dt_sec = (tca_precise_dt - launch_time).total_seconds()
-            r_unburned_tca, _ = propagate_keplerian_rk4(r0, v0, dt_sec)
-            err_unburned = 0
-        else:
-            jd_tca, fr_tca = jday(tca_precise_dt.year, tca_precise_dt.month, tca_precise_dt.day, tca_precise_dt.hour, tca_precise_dt.minute, tca_precise_dt.second)
-            err_unburned, r_unburned_tca, _ = sat2_rec.sgp4(jd_tca, fr_tca)
+        r_unburned_tca = pos2_tca
+        pos1_sim_tca, vel1_sim_tca = r_burned_tca, v_burned_tca
+        pos2_sim_tca, vel2_sim_tca = pos2_tca, vel2_tca
     else:
-        if sat1_custom:
-            launch_time = datetime.fromisoformat(sat1_custom["launch_time"])
-            r0 = [sat1_custom["init_x"], sat1_custom["init_y"], sat1_custom["init_z"]]
-            v0 = [sat1_custom["init_vx"], sat1_custom["init_vy"], sat1_custom["init_vz"]]
-            dt_sec = (tca_precise_dt - launch_time).total_seconds()
-            r_unburned_tca, _ = propagate_keplerian_rk4(r0, v0, dt_sec)
-            err_unburned = 0
-        else:
-            jd_tca, fr_tca = jday(tca_precise_dt.year, tca_precise_dt.month, tca_precise_dt.day, tca_precise_dt.hour, tca_precise_dt.minute, tca_precise_dt.second)
-            err_unburned, r_unburned_tca, _ = sat1_rec.sgp4(jd_tca, fr_tca)
-            
-    if err_unburned != 0 or r_unburned_tca is None:
-        raise HTTPException(status_code=400, detail="Could not propagate unburned satellite to TCA epoch")
+        r_unburned_tca = pos1_tca
+        pos1_sim_tca, vel1_sim_tca = pos1_tca, vel1_tca
+        pos2_sim_tca, vel2_sim_tca = r_burned_tca, v_burned_tca
         
     sim_dist = math.sqrt((r_burned_tca[0]-r_unburned_tca[0])**2 + (r_burned_tca[1]-r_unburned_tca[1])**2 + (r_burned_tca[2]-r_unburned_tca[2])**2)
     
+    original_collision_probability = compute_pc_between_states(
+        pos1_tca, vel1_tca, sat1_item,
+        pos2_tca, vel2_tca, sat2_item
+    )
+    original_collision_probability_str = format_probability_str(original_collision_probability)
+    
+    simulated_collision_probability = compute_pc_between_states(
+        pos1_sim_tca, vel1_sim_tca, sat1_item,
+        pos2_sim_tca, vel2_sim_tca, sat2_item
+    )
+    simulated_collision_probability_str = format_probability_str(simulated_collision_probability)
+
     time_series = []
     for step in range(11):
         fraction = step / 10.0
@@ -1415,7 +1669,11 @@ def simulate_avoidance_maneuver(
         "delta_distance_km": round(sim_dist - fine_min_dist, 3),
         "tca": tca_precise_dt.isoformat(),
         "outcome": outcome,
-        "time_series": time_series
+        "time_series": time_series,
+        "original_collision_probability": original_collision_probability,
+        "original_collision_probability_str": original_collision_probability_str,
+        "simulated_collision_probability": simulated_collision_probability,
+        "simulated_collision_probability_str": simulated_collision_probability_str
     }
 
 
@@ -1596,6 +1854,10 @@ class CustomSatelliteRequest(BaseModel):
     arg_perigee_deg: float
     mean_anomaly_deg: float
     country: str = "USA"
+    radial_error_m: float = 100.0
+    transverse_error_m: float = 500.0
+    normal_error_m: float = 200.0
+
 
 
 def keplerian_to_cartesian(
@@ -1696,8 +1958,12 @@ def get_custom_satellites_for_user(email: str | None) -> list[dict[str, Any]]:
                 "init_z": sat["init_z"],
                 "init_vx": sat["init_vx"],
                 "init_vy": sat["init_vy"],
-                "init_vz": sat["init_vz"]
+                "init_vz": sat["init_vz"],
+                "radial_error_m": sat.get("radial_error_m", 100.0),
+                "transverse_error_m": sat.get("transverse_error_m", 500.0),
+                "normal_error_m": sat.get("normal_error_m", 200.0)
             })
+
         except Exception:
             continue
             
@@ -1730,8 +1996,12 @@ def launch_custom_satellite(payload: CustomSatelliteRequest, authorization: str 
         "init_z": pos[2],
         "init_vx": vel[0],
         "init_vy": vel[1],
-        "init_vz": vel[2]
+        "init_vz": vel[2],
+        "radial_error_m": payload.radial_error_m,
+        "transverse_error_m": payload.transverse_error_m,
+        "normal_error_m": payload.normal_error_m
     }
+
     
     items = store_get(f"custom_sats:{email}", [])
     items.append(sat_entry)
