@@ -64,6 +64,13 @@ class LoginRequest(BaseModel):
 class VerifyRequest(BaseModel):
     email: EmailStr
     code: str
+    requested_role: str | None = None
+
+
+class RoleChangeRequest(BaseModel):
+    target_email: EmailStr
+    new_role: str
+
 
 
 class WatchlistRequest(BaseModel):
@@ -513,9 +520,12 @@ def log_operator_action(email: str, action: str, details: str) -> None:
     url = os.getenv("UPSTASH_REDIS_REST_URL")
     token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
     
+    role = get_user_role(email)
+    
     log_entry = {
         "timestamp": now_iso(),
         "email": email,
+        "role": role,
         "action": action,
         "details": details
     }
@@ -662,6 +672,32 @@ def store_get(key: str, default: Any = None) -> Any:
         result = response.json().get("result")
         return json.loads(result) if result else default
     return _memory_store.get(key, default)
+
+
+def get_user_role(email: str) -> str:
+    role = store_get(f"role:{email.lower()}")
+    if not role:
+        email_lower = email.lower()
+        if "director" in email_lower:
+            role = "Flight Director"
+        elif "operator" in email_lower:
+            role = "Operator"
+        else:
+            role = "Viewer"
+        store_set(f"role:{email.lower()}", role)
+    return role
+
+
+def verify_session_and_role(authorization: str | None, required_roles: list[str]) -> str:
+    email = verify_session(authorization)
+    role = get_user_role(email)
+    if role not in required_roles:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role}' is unauthorized for this action. Required: {', '.join(required_roles)}"
+        )
+    return email
+
 
 
 def send_email(to_email: str, subject: str, html: str) -> dict[str, Any]:
@@ -890,10 +926,18 @@ def verify_code(payload: VerifyRequest) -> dict[str, Any]:
     if not record or record.get("expires_at", 0) < time.time() or record.get("code") != payload.code:
         log_operator_action(payload.email, "AUTH_FAIL", "Invalid or expired login code attempted")
         raise HTTPException(status_code=401, detail="Invalid or expired code")
+    
+    role = payload.requested_role
+    if role not in ("Viewer", "Operator", "Flight Director"):
+        role = get_user_role(payload.email)
+    else:
+        store_set(f"role:{payload.email.lower()}", role)
+        
     store_set(f"user:{payload.email}", {"email": payload.email, "created_at": now_iso()})
     add_registered_user(payload.email)
-    log_operator_action(payload.email, "AUTH_SUCCESS", "Operator successfully logged in")
-    return {"ok": True, "token": sign_session(payload.email), "email": payload.email}
+    log_operator_action(payload.email, "AUTH_SUCCESS", f"Operator successfully logged in with role '{role}'")
+    return {"ok": True, "token": sign_session(payload.email), "email": payload.email, "role": role}
+
 
 
 
@@ -905,7 +949,8 @@ def get_watchlist(authorization: str | None = Header(default=None)) -> dict[str,
 
 @app.post("/api/user/watchlist")
 def add_watchlist(payload: WatchlistRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    email = verify_session(authorization)
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
     items = store_get(f"watchlist:{email}", [])
     item = {"object_name": payload.object_name, "threshold_km": payload.threshold_km, "created_at": now_iso()}
     items.append(item)
@@ -916,7 +961,8 @@ def add_watchlist(payload: WatchlistRequest, authorization: str | None = Header(
 
 @app.post("/api/alerts/test")
 def send_test_alert(payload: AlertRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    email = payload.email or verify_session(authorization)
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
     catalog, _meta = fetch_telemetry_catalog("STATIONS", 80)
     events, nearest = detect_time_series_conjunctions(catalog, payload.threshold_km)
     top = (events or nearest)[0] if (events or nearest) else None
@@ -1124,12 +1170,8 @@ def simulate_avoidance_maneuver(
     payload: ManeuverRequest,
     authorization: str | None = Header(default=None)
 ) -> dict[str, Any]:
-    email = None
-    if authorization:
-        try:
-            email = verify_session(authorization)
-        except Exception:
-            pass
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
             
     custom_sats = get_custom_satellites_for_user(email)
     
@@ -1396,7 +1438,8 @@ def get_alert_settings(authorization: str | None = Header(default=None)) -> dict
 
 @app.post("/api/alerts/settings")
 def save_alert_settings(payload: AlertSettingsRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    email = verify_session(authorization)
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
     settings = {
         "enabled": payload.enabled,
         "email": payload.email,
@@ -1507,7 +1550,8 @@ def perform_scan_for_user(email: str, settings: dict[str, Any]) -> list[dict[str
 
 @app.post("/api/alerts/scan")
 def trigger_manual_scan(authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    email = verify_session(authorization)
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
     settings = store_get(f"settings:alerts:{email}", {
         "enabled": False,
         "email": email,
@@ -1662,7 +1706,8 @@ def get_custom_satellites_for_user(email: str | None) -> list[dict[str, Any]]:
 
 @app.post("/api/user/custom-satellites")
 def launch_custom_satellite(payload: CustomSatelliteRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
-    email = verify_session(authorization)
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
     
     pos, vel = keplerian_to_cartesian(
         payload.semi_major_axis_km,
@@ -1706,12 +1751,8 @@ def solve_avoidance_maneuver(
     payload: ManeuverSolveRequest,
     authorization: str | None = Header(default=None)
 ) -> dict[str, Any]:
-    email = None
-    if authorization:
-        try:
-            email = verify_session(authorization)
-        except Exception:
-            pass
+    email = verify_session_and_role(authorization, ["Operator", "Flight Director"])
+
             
     custom_sats = get_custom_satellites_for_user(email)
     
@@ -1954,6 +1995,110 @@ def solve_avoidance_maneuver(
         }
     else:
         raise HTTPException(status_code=400, detail="Could not solve maneuver optimization")
+
+
+@app.get("/api/admin/users")
+def get_admin_users(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    users_list = get_registered_users()
+    if email not in users_list:
+        users_list.append(email)
+    users_with_roles = [{"email": u, "role": get_user_role(u)} for u in users_list]
+    return {"ok": True, "users": users_with_roles}
+
+
+@app.post("/api/admin/change-role")
+def change_user_role(payload: RoleChangeRequest, authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    if payload.new_role not in ("Viewer", "Operator", "Flight Director"):
+        raise HTTPException(status_code=400, detail="Invalid role specified")
+    store_set(f"role:{payload.target_email.lower()}", payload.new_role)
+    log_operator_action(
+        email, 
+        "ROLE_CHANGE", 
+        f"Changed role of user '{payload.target_email}' to '{payload.new_role}'"
+    )
+    return {"ok": True, "target_email": payload.target_email, "new_role": payload.new_role}
+
+
+@app.delete("/api/user/custom-satellites")
+def clear_all_custom_satellites(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    url = os.getenv("UPSTASH_REDIS_REST_URL")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+    users = get_registered_users()
+    
+    if email not in users:
+        users.append(email)
+        
+    cleared_count = 0
+    for u in users:
+        key = f"custom_sats:{u}"
+        if url and token:
+            try:
+                requests.post(
+                    url,
+                    headers={"Authorization": f"Bearer {token}"},
+                    json=["DEL", key],
+                    timeout=6
+                )
+            except Exception:
+                pass
+        if key in _memory_store:
+            del _memory_store[key]
+        cleared_count += 1
+        
+    log_operator_action(email, "DB_CLEAR_CUSTOM_SATS", f"Cleared all custom spacecraft. Affected operator accounts: {cleared_count}")
+    return {"ok": True, "detail": f"Cleared custom satellites for {cleared_count} operators"}
+
+
+@app.delete("/api/history/audit")
+def clear_audit_logs(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    url = os.getenv("UPSTASH_REDIS_REST_URL")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+    if url and token:
+        try:
+            requests.post(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json=["DEL", "audit:log"],
+                timeout=6
+            )
+        except Exception:
+            pass
+    _memory_store["audit:log"] = []
+    log_operator_action(email, "DB_CLEAR_AUDIT", "Flight Director cleared operator audit trail logs")
+    return {"ok": True, "detail": "Audit logs successfully cleared"}
+
+
+@app.delete("/api/history/conjunctions")
+def clear_conjunction_history(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    url = os.getenv("UPSTASH_REDIS_REST_URL")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+    if url and token:
+        try:
+            requests.post(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json=["DEL", "history:conjunctions"],
+                timeout=6
+            )
+            requests.post(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                json=["DEL", "history:logged_set"],
+                timeout=6
+            )
+        except Exception:
+            pass
+    _memory_store["history:conjunctions"] = []
+    if "history:logged_set" in _memory_store:
+        _memory_store["history:logged_set"] = set()
+    log_operator_action(email, "DB_CLEAR_CONJUNCTIONS", "Flight Director cleared conjunction history tracking log")
+    return {"ok": True, "detail": "Conjunction logs successfully cleared"}
+
 
 
 

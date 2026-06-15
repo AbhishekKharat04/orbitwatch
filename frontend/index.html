@@ -162,7 +162,35 @@
   .refresh-btn { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-family: 'Orbitron', sans-serif; font-weight: 700; text-transform: uppercase; transition: all 0.2s; }
   .refresh-btn:hover { background: rgba(0,212,255,0.12); box-shadow: 0 0 8px rgba(0, 212, 255, 0.2); }
   
+  .role-badge {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-left: 6px;
+    display: inline-block;
+  }
+  .role-Viewer {
+    background: rgba(100, 116, 139, 0.15);
+    color: #94a3b8;
+    border: 1px solid #475569;
+  }
+  .role-Operator {
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    border: 1px solid #7c3aed;
+  }
+  .role-Director {
+    background: rgba(234, 179, 8, 0.15);
+    color: #f59e0b;
+    border: 1px solid #d97706;
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.2);
+  }
+  
   footer { border-top: 1px solid var(--border); padding: 1.5rem 0; text-align: center; font-size: 0.7rem; color: var(--muted); background: rgba(3, 7, 18, 0.9); }
+
 </style>
 </head>
 <body>
@@ -408,7 +436,16 @@
             <input id="auth-code" type="text" placeholder="Code">
             <button class="refresh-btn" onclick="verifyLoginCode()">Log In</button>
           </div>
+          <div style="margin-bottom: 0.6rem; display: flex; flex-direction: column; gap: 0.25rem;">
+            <label style="font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-family: 'Orbitron', sans-serif;">Requested Operator Role:</label>
+            <select id="auth-role" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; font-size: 0.75rem; padding: 0.45rem 0.55rem; outline: none; width: 100%; font-family: inherit;">
+              <option value="Viewer">Viewer (Read-only)</option>
+              <option value="Operator" selected>Operator (Flight Ops)</option>
+              <option value="Flight Director">Flight Director (Admin Override)</option>
+            </select>
+          </div>
           <button class="refresh-btn" style="width:100%; margin-top:0.4rem;" onclick="sendTestAlert()">Send Conjunction Email Alert</button>
+
           <div class="auth-note" id="auth-note">Credentials authenticate watchlist storage.</div>
           <div class="integration-grid" id="integration-grid">
             <div class="integration-item"><strong>CelesTrak</strong>Checking...</div>
@@ -515,7 +552,50 @@
     </div>
   </div>
 
+  <!-- Flight Director Command Center Panel (Visible only to Flight Director) -->
+  <div class="panel" id="admin-panel" style="display: none; margin-top: 1.5rem; margin-bottom: 2.5rem; border-color: rgba(234, 179, 8, 0.4); box-shadow: 0 4px 25px rgba(234, 179, 8, 0.05);">
+    <div class="panel-header" style="background: rgba(234, 179, 8, 0.05); border-bottom: 1px solid rgba(234, 179, 8, 0.25);">
+      <span class="panel-title" style="color: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
+        <span style="display:inline-block; width:8px; height:8px; background:#f59e0b; border-radius:50%; box-shadow: 0 0 8px #f59e0b; animation: pulse 1.5s infinite;"></span>
+        FLIGHT DIRECTOR ADMINISTRATIVE COMMAND DESK
+      </span>
+    </div>
+    <div class="panel-body" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1.5rem; padding: 1.25rem;">
+      
+      <!-- Column 1: Operator Role Matrix Directory -->
+      <div>
+        <div style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; color: #cbd5e1; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
+          Operator Access Control & Role Management
+        </div>
+        <div class="sat-table-scroll" id="admin-users-wrap" style="max-height: 180px; border-color: rgba(234, 179, 8, 0.15);">
+          <div class="loading">Loading operator directory...</div>
+        </div>
+      </div>
+      
+      <!-- Column 2: System Database Destruction Controls -->
+      <div style="border-left: 1px solid var(--border); padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; color: #cbd5e1; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em;">
+          Database Diagnostic Operations
+        </div>
+        <span style="font-size: 0.65rem; color: var(--muted); line-height: 1.3;">
+          Clear specific databases to restore system environment coordinates. These operations log actions immediately in the audit trail.
+        </span>
+        <button class="refresh-btn" style="color:#f43f5e; border-color:rgba(244,63,94,0.4); background:rgba(244,63,94,0.03); padding:0.6rem;" onclick="adminClearCustomSats()">
+          Flush All Custom Spacecraft
+        </button>
+        <button class="refresh-btn" style="color:#e2e8f0; border-color:var(--border); background:rgba(255,255,255,0.02); padding:0.6rem;" onclick="adminClearConjunctions()">
+          Flush Conjunction History
+        </button>
+        <button class="refresh-btn" style="color:#f59e0b; border-color:rgba(245,158,11,0.4); background:rgba(245,158,11,0.03); padding:0.6rem;" onclick="adminClearAuditLogs()">
+          Flush System Audit Logs
+        </button>
+      </div>
+      
+    </div>
+  </div>
+
 </div>
+
 
 <footer>
   <div class="wrap">
@@ -531,8 +611,10 @@ const API = window.location.hostname === 'localhost' || window.location.hostname
 let satellites = [];
 let conjunctionEvents = [];
 let sessionToken = localStorage.getItem('orbitwatch_token') || '';
+let currentUserRole = localStorage.getItem('orbitwatch_role') || 'Viewer';
 let selectedSatelliteName = '';
 let chatHistory = [];
+
 
 // Interactive Globe rotation & zoom
 let targetRotationX = 0.6;
@@ -1031,13 +1113,18 @@ function onCatalogChange(val) {
 }
 
 async function refreshAll() {
+  updateUIPermissions();
   await fetchStats();
   await fetchSatellites();
   await fetchConjunctions(document.getElementById('threshold').value);
   await getWatchlist();
   await getAlertSettings();
   await fetchHistory();
+  if (sessionToken && currentUserRole === 'Flight Director') {
+    fetchAdminUsersList();
+  }
 }
+
 
 async function fetchHistory() {
   try {
@@ -1083,11 +1170,12 @@ function renderAuditTerminal(logs) {
     if (l.action.includes('FAIL')) color = 'var(--red)';
     else if (l.action.includes('SUCCESS') || l.action.includes('ADD') || l.action.includes('ALERT')) color = 'var(--green)';
     
-    return `<div>[${timeStr}] <span style="color:${color}; font-weight:bold;">${l.action}</span> - <span style="color:var(--muted)">${l.email}</span>: ${l.details}</div>`;
+    return `<div>[${timeStr}] <span style="color:${color}; font-weight:bold;">${l.action}</span> - <span style="color:var(--muted)">${l.email} [${l.role || 'Viewer'}]</span>: ${l.details}</div>`;
   }).join('');
   
   terminal.innerHTML = formatted;
 }
+
 
 async function requestLoginCode() {
   const email = document.getElementById('auth-email').value.trim();
@@ -1107,23 +1195,100 @@ async function requestLoginCode() {
 async function verifyLoginCode() {
   const email = document.getElementById('auth-email').value.trim();
   const code = document.getElementById('auth-code').value.trim();
+  const roleSelect = document.getElementById('auth-role');
+  const requested_role = roleSelect ? roleSelect.value : 'Viewer';
   const note = document.getElementById('auth-note');
-  const r = await fetch(`${API}/api/auth/verify-code`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({email, code})
-  });
-  const d = await r.json();
-  if (d.token) {
-    sessionToken = d.token;
-    localStorage.setItem('orbitwatch_token', sessionToken);
-    note.textContent = `Authenticated: ${d.email}`;
-    getWatchlist();
-    getAlertSettings();
-  } else {
-    note.textContent = d.detail || 'Authentication failed.';
+  
+  try {
+    const r = await fetch(`${API}/api/auth/verify-code`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email, code, requested_role})
+    });
+    const d = await r.json();
+    if (d.token) {
+      sessionToken = d.token;
+      localStorage.setItem('orbitwatch_token', sessionToken);
+      
+      currentUserRole = d.role || 'Viewer';
+      localStorage.setItem('orbitwatch_role', currentUserRole);
+      localStorage.setItem('orbitwatch_email', d.email);
+      
+      updateUIPermissions();
+      getWatchlist();
+      getAlertSettings();
+      await fetchHistory();
+      
+      if (currentUserRole === 'Flight Director') {
+        fetchAdminUsersList();
+      }
+    } else {
+      note.textContent = d.detail || 'Authentication failed.';
+    }
+  } catch (e) {
+    note.textContent = 'Auth connection error.';
   }
 }
+
+function updateUIPermissions() {
+  const note = document.getElementById('auth-note');
+  const adminPanel = document.getElementById('admin-panel');
+  
+  if (sessionToken) {
+    const email = localStorage.getItem('orbitwatch_email') || 'operator@orbit.gov';
+    const roleClass = currentUserRole === 'Flight Director' ? 'role-Director' : `role-${currentUserRole}`;
+    note.innerHTML = `Authenticated: <strong>${email}</strong> <span class="role-badge ${roleClass}">${currentUserRole}</span>`;
+    
+    if (adminPanel) {
+      adminPanel.style.display = (currentUserRole === 'Flight Director') ? 'block' : 'none';
+    }
+    
+    const isViewer = (currentUserRole === 'Viewer');
+    
+    const mappings = [
+      { selector: 'button[onclick="launchCustomSatellite()"]', text: 'Launch Custom Satellite', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="saveWatchItem()"]', text: 'Add', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="saveAlertSettings()"]', text: 'Save Alert Preferences', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="triggerManualScan()"]', text: 'Trigger Direct Scan', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="runManeuverSimulation()"]', text: 'Execute Simulation', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="autoSolveConjunction()"]', text: 'Auto-Solve Avoidance', viewerMsg: 'Ops permissions required' },
+      { selector: 'button[onclick="sendTestAlert()"]', text: 'Send Conjunction Email Alert', viewerMsg: 'Ops permissions required' }
+    ];
+    
+    mappings.forEach(m => {
+      const btn = document.querySelector(m.selector);
+      if (btn) {
+        btn.disabled = isViewer;
+        btn.style.opacity = isViewer ? '0.5' : '1';
+        btn.style.cursor = isViewer ? 'not-allowed' : 'pointer';
+        btn.title = isViewer ? m.viewerMsg : '';
+      }
+    });
+  } else {
+    note.textContent = 'Credentials authenticate watchlist storage.';
+    if (adminPanel) adminPanel.style.display = 'none';
+    
+    const buttonsToDisable = [
+      'button[onclick="launchCustomSatellite()"]',
+      'button[onclick="saveWatchItem()"]',
+      'button[onclick="saveAlertSettings()"]',
+      'button[onclick="triggerManualScan()"]',
+      'button[onclick="runManeuverSimulation()"]',
+      'button[onclick="autoSolveConjunction()"]',
+      'button[onclick="sendTestAlert()"]'
+    ];
+    buttonsToDisable.forEach(selector => {
+      const btn = document.querySelector(selector);
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+        btn.title = 'Authentication required';
+      }
+    });
+  }
+}
+
 
 async function getWatchlist() {
   if (!sessionToken) return;
@@ -1663,7 +1828,125 @@ async function launchCustomSatellite() {
   }
 }
 
+async function fetchAdminUsersList() {
+  const wrap = document.getElementById('admin-users-wrap');
+  if (!wrap) return;
+  try {
+    const r = await fetch(`${API}/api/admin/users`, {
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.users) {
+      let html = `<table class="sat-table" style="font-size:0.75rem">
+        <thead><tr><th>Email Address</th><th>Active Role</th><th>Actions</th></tr></thead>
+        <tbody>`;
+      d.users.forEach(u => {
+        const roleClass = u.role === 'Flight Director' ? 'role-Director' : `role-${u.role}`;
+        html += `<tr>
+          <td style="font-weight:600">${u.email}</td>
+          <td><span class="role-badge ${roleClass}">${u.role}</span></td>
+          <td>
+            <select style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:0.7rem; border-radius:4px; padding:2px 4px; font-family:inherit; outline:none;" onchange="adminChangeRole('${u.email}', this.value)">
+              <option value="Viewer" ${u.role === 'Viewer' ? 'selected' : ''}>Viewer</option>
+              <option value="Operator" ${u.role === 'Operator' ? 'selected' : ''}>Operator</option>
+              <option value="Flight Director" ${u.role === 'Flight Director' ? 'selected' : ''}>Flight Director</option>
+            </select>
+          </td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+      wrap.innerHTML = html;
+    }
+  } catch(e) {
+    wrap.innerHTML = '<div class="loading">Failed to load user directory.</div>';
+  }
+}
+
+async function adminChangeRole(targetEmail, newRole) {
+  try {
+    const r = await fetch(`${API}/api/admin/change-role`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({target_email: targetEmail, new_role: newRole})
+    });
+    const d = await r.json();
+    if (d.ok) {
+      if (targetEmail === localStorage.getItem('orbitwatch_email')) {
+        currentUserRole = newRole;
+        localStorage.setItem('orbitwatch_role', newRole);
+        updateUIPermissions();
+      }
+      fetchAdminUsersList();
+      await fetchHistory();
+    } else {
+      alert(d.detail || "Failed to update role");
+    }
+  } catch(e) {
+    alert("Error changing user role");
+  }
+}
+
+async function adminClearCustomSats() {
+  if (!confirm("Are you sure you want to delete all custom satellites from the system database? This cannot be undone.")) return;
+  try {
+    const r = await fetch(`${API}/api/user/custom-satellites`, {
+      method: 'DELETE',
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.ok) {
+      alert("Custom spacecraft successfully cleared from all operator sessions.");
+      await refreshAll();
+    } else {
+      alert(d.detail || "Failed to clear spacecraft.");
+    }
+  } catch(e) {
+    alert("Error clearing custom spacecraft.");
+  }
+}
+
+async function adminClearAuditLogs() {
+  if (!confirm("Are you sure you want to clear the entire operator audit log database?")) return;
+  try {
+    const r = await fetch(`${API}/api/history/audit`, {
+      method: 'DELETE',
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('audit-log-terminal').innerHTML = '<div style="opacity: 0.5;">[SYSTEM] Log database flushed.</div>';
+      await fetchHistory();
+    } else {
+      alert(d.detail || "Failed to clear logs.");
+    }
+  } catch(e) {
+    alert("Error clearing logs.");
+  }
+}
+
+async function adminClearConjunctions() {
+  if (!confirm("Are you sure you want to clear the conjunction tracking history list?")) return;
+  try {
+    const r = await fetch(`${API}/api/history/conjunctions`, {
+      method: 'DELETE',
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.ok) {
+      await refreshAll();
+    } else {
+      alert(d.detail || "Failed to clear conjunction history.");
+    }
+  } catch(e) {
+    alert("Error clearing conjunction history.");
+  }
+}
+
 // Initial animation & rendering loops
+
 function animate() {
   // Smoothly rotate Earth sphere when not dragging
   rotationX += (targetRotationX - rotationX) * 0.1;
