@@ -370,7 +370,10 @@
             </div>
           </div>
 
-          <button class="refresh-btn" style="width: 100%; padding: 0.5rem; margin-top: 0.25rem; font-weight: bold;" onclick="runManeuverSimulation()">Execute Avoidance Simulation</button>
+          <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 0.5rem; margin-top: 0.25rem;">
+            <button class="refresh-btn" style="padding: 0.5rem; font-weight: bold;" onclick="runManeuverSimulation()">Execute Simulation</button>
+            <button class="refresh-btn" style="padding: 0.5rem; font-weight: bold; background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.5);" onclick="autoSolveConjunction()">Auto-Solve Avoidance</button>
+          </div>
 
           <div id="sim-results-box" style="display: none; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 0.65rem; font-size: 0.72rem; line-height: 1.4;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
@@ -380,6 +383,7 @@
             <div>Original Miss Distance: <strong id="sim-orig-dist">--</strong></div>
             <div>Simulated Separation: <strong id="sim-new-dist" style="color: var(--green);">--</strong></div>
             <div>Miss Distance Delta: <strong id="sim-delta-dist" style="color: var(--accent);">--</strong></div>
+            <div id="sim-solve-advice" style="display: none; margin-top: 0.45rem; padding: 0.4rem 0.55rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; color: #a7f3d0; font-size: 0.7rem; line-height: 1.35;"></div>
             <div style="margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
               <div style="font-family: 'Orbitron', sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <span>Separation (km) <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span></span>
@@ -1502,11 +1506,15 @@ function drawSimulationChart(timeSeriesData, burnHoursBeforeTca) {
   drawPath(simulatedPoints, '#10b981', 'rgba(16, 185, 129, 0.25)');
 }
 
-async function runManeuverSimulation() {
+async function runManeuverSimulation(isAutoSolved = false) {
   const select = document.getElementById('sim-conjunction-select');
   if (!select || select.value === "") {
     alert("Please select an active conjunction target to simulate a burn.");
     return;
+  }
+  
+  if (!isAutoSolved) {
+    document.getElementById('sim-solve-advice').style.display = 'none';
   }
   
   const event = conjunctionEvents[Number(select.value)];
@@ -1553,6 +1561,57 @@ async function runManeuverSimulation() {
     alert("Failed to communicate with simulation service.");
   }
 }
+
+async function autoSolveConjunction() {
+  const select = document.getElementById('sim-conjunction-select');
+  if (!select || select.value === "") {
+    alert("Please select an active conjunction target to automatically solve.");
+    return;
+  }
+  
+  const event = conjunctionEvents[Number(select.value)];
+  const payload = {
+    sat1_name: event.sat1,
+    sat2_name: event.sat2,
+    group: getSelectedCatalog(),
+    limit: 80
+  };
+  
+  const adviceBox = document.getElementById('sim-solve-advice');
+  adviceBox.style.display = 'none';
+  
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': sessionToken ? `Bearer ${sessionToken}` : ''
+    };
+    const r = await fetch(`${API}/api/maneuver/solve`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    
+    if (d.burn_satellite) {
+      document.getElementById('sim-sat-select').value = d.burn_satellite;
+      document.getElementById('sim-direction-select').value = d.burn_direction;
+      document.getElementById('sim-dv-slider').value = d.delta_v_m_s;
+      document.getElementById('sim-dv-val').textContent = d.delta_v_m_s + ' m/s';
+      document.getElementById('sim-lead-select').value = d.burn_hours_before_tca;
+      
+      const satName = d.burn_satellite === 'sat1' ? d.sat1_name : d.sat2_name;
+      adviceBox.style.display = 'block';
+      adviceBox.innerHTML = `<strong>Advisory Recommendation:</strong> Apply <strong>${d.delta_v_m_s} m/s</strong> ${d.burn_direction} burn on <strong>${satName}</strong> ${d.burn_hours_before_tca}h before TCA. (Predicted safety distance: <strong>${d.simulated_distance_km} km</strong>)`;
+      
+      await runManeuverSimulation(true);
+    } else {
+      alert("Solver error: " + (d.detail || "Unable to optimize maneuver path"));
+    }
+  } catch (e) {
+    alert("Failed to communicate with maneuver solve optimization service.");
+  }
+}
+
 
 async function launchCustomSatellite() {
   const note = document.getElementById('custom-sat-note');
