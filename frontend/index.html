@@ -424,11 +424,38 @@
             <div>Simulated Collision Risk: <strong id="sim-new-prob" style="color: var(--green);">--</strong></div>
             <div id="sim-solve-advice" style="display: none; margin-top: 0.45rem; padding: 0.4rem 0.55rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; color: #a7f3d0; font-size: 0.7rem; line-height: 1.35;"></div>
             <div style="margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
-              <div style="font-family: 'Orbitron', sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
-                <span>Separation (km) <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span></span>
-                <span style="font-size: 0.6rem; text-transform: none;">X-Axis: Time to TCA</span>
+              <div style="display: flex; gap: 0.4rem; margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); padding-bottom: 0.35rem; overflow-x: auto;">
+                <button id="tab-btn-trend" onclick="switchSandboxTab('trend')" style="background:none; border:none; color:var(--accent); font-family:'Orbitron', sans-serif; font-size:0.62rem; font-weight:bold; cursor:pointer; padding:2px 4px; border-bottom: 2px solid var(--accent); outline:none; transition: all 0.2s;">Separation Trend</button>
+                <button id="tab-btn-bplane" onclick="switchSandboxTab('bplane')" style="background:none; border:none; color:var(--muted); font-family:'Orbitron', sans-serif; font-size:0.62rem; font-weight:bold; cursor:pointer; padding:2px 4px; border-bottom: 2px solid transparent; outline:none; transition: all 0.2s;">B-Plane Plot</button>
+                <button id="tab-btn-dilution" onclick="switchSandboxTab('dilution')" style="background:none; border:none; color:var(--muted); font-family:'Orbitron', sans-serif; font-size:0.62rem; font-weight:bold; cursor:pointer; padding:2px 4px; border-bottom: 2px solid transparent; outline:none; transition: all 0.2s;">Risk Dilution</button>
               </div>
-              <canvas id="sim-chart-canvas" style="width: 100%; height: 120px; display: block; background: #010307; border: 1px solid rgba(55, 65, 81, 0.4); border-radius: 4px;"></canvas>
+
+              <!-- Tab 1: Separation Trend -->
+              <div id="tab-content-trend">
+                <div style="font-family: 'Orbitron', sans-serif; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+                  <span>Separation (km) <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span></span>
+                  <span style="font-size: 0.6rem; text-transform: none; color:var(--muted)">X-Axis: Time to TCA</span>
+                </div>
+                <canvas id="sim-chart-canvas" style="width: 100%; height: 120px; display: block; background: #010307; border: 1px solid rgba(55, 65, 81, 0.4); border-radius: 4px;"></canvas>
+              </div>
+
+              <!-- Tab 2: Collision B-Plane -->
+              <div id="tab-content-bplane" style="display: none;">
+                <div style="font-family: 'Orbitron', sans-serif; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+                  <span>B-Plane Cross-Section <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span><span style="color:rgba(244, 63, 94, 0.6); font-size:0.6rem; margin-left:4px;">⬡ Safety (15m)</span></span>
+                  <span style="font-size: 0.6rem; text-transform: none; color:var(--muted)">Origin: Primary</span>
+                </div>
+                <canvas id="sim-bplane-canvas" style="width: 100%; height: 160px; display: block; background: #010307; border: 1px solid rgba(55, 65, 81, 0.4); border-radius: 4px;"></canvas>
+              </div>
+
+              <!-- Tab 3: Risk Dilution -->
+              <div id="tab-content-dilution" style="display: none;">
+                <div style="font-family: 'Orbitron', sans-serif; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.4rem; display: flex; justify-content: space-between; align-items: center;">
+                  <span>Dilution Curve <span style="color:var(--red); font-size:0.6rem; margin-left:6px;">● Orig</span><span style="color:var(--green); font-size:0.6rem; margin-left:4px;">● Sim</span><span style="color:var(--accent); font-size:0.6rem; margin-left:4px;">▲ Actual (1x)</span></span>
+                  <span style="font-size: 0.6rem; text-transform: none; color:var(--muted)">X-Axis: Log Sigma Scale</span>
+                </div>
+                <canvas id="sim-dilution-canvas" style="width: 100%; height: 120px; display: block; background: #010307; border: 1px solid rgba(55, 65, 81, 0.4); border-radius: 4px;"></canvas>
+              </div>
             </div>
           </div>
         </div>
@@ -654,6 +681,7 @@ let sessionToken = localStorage.getItem('orbitwatch_token') || '';
 let currentUserRole = localStorage.getItem('orbitwatch_role') || 'Viewer';
 let selectedSatelliteName = '';
 let chatHistory = [];
+let activeSimulationResult = null;
 
 
 // Interactive Globe rotation & zoom
@@ -1157,6 +1185,9 @@ function updateThreshold(val) {
 
 function onCatalogChange(val) {
   selectedSatelliteName = '';
+  activeSimulationResult = null;
+  const resultsBox = document.getElementById('sim-results-box');
+  if (resultsBox) resultsBox.style.display = 'none';
   refreshAll();
 }
 
@@ -1582,6 +1613,10 @@ function onSimConjunctionChange() {
   const satSelect = document.getElementById('sim-sat-select');
   if (!select || !satSelect) return;
   
+  activeSimulationResult = null;
+  const resultsBox = document.getElementById('sim-results-box');
+  if (resultsBox) resultsBox.style.display = 'none';
+  
   const idx = select.value;
   if (idx === "") {
     satSelect.innerHTML = `
@@ -1724,6 +1759,333 @@ function drawSimulationChart(timeSeriesData, burnHoursBeforeTca) {
   drawPath(simulatedPoints, '#10b981', 'rgba(16, 185, 129, 0.25)');
 }
 
+function switchSandboxTab(tabName) {
+  const tabs = ['trend', 'bplane', 'dilution'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`tab-btn-${t}`);
+    const content = document.getElementById(`tab-content-${t}`);
+    if (btn && content) {
+      if (t === tabName) {
+        btn.style.color = 'var(--accent)';
+        btn.style.borderBottom = '2px solid var(--accent)';
+        content.style.display = 'block';
+      } else {
+        btn.style.color = 'var(--muted)';
+        btn.style.borderBottom = '2px solid transparent';
+        content.style.display = 'none';
+      }
+    }
+  });
+  
+  if (activeSimulationResult) {
+    if (tabName === 'bplane') {
+      drawBPlaneChart(activeSimulationResult);
+    } else if (tabName === 'dilution') {
+      drawDilutionCurve(activeSimulationResult);
+    }
+  }
+}
+
+function drawBPlaneChart(sim) {
+  const canvas = document.getElementById('sim-bplane-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(dpr, dpr);
+  
+  const width = rect.width;
+  const height = rect.height;
+  const cx = width / 2;
+  const cy = height / 2;
+  
+  const orig = sim.original_bplane;
+  const simulated = sim.simulated_bplane;
+  if (!orig) return;
+  
+  let maxCoord = 0.05; // min window 50m
+  
+  const getEllipseMaxRadius = (c2d) => {
+    if (!c2d) return 0;
+    const a = c2d[0][0];
+    const b = c2d[0][1];
+    const d = c2d[1][1];
+    const lambda1 = (a + d) / 2 + Math.sqrt(Math.pow((a - d) / 2, 2) + Math.pow(b, 2));
+    return 3 * Math.sqrt(Math.max(0, lambda1));
+  };
+  
+  const origMaxRadius = getEllipseMaxRadius(orig.c2d);
+  const simMaxRadius = getEllipseMaxRadius(simulated ? simulated.c2d : null);
+  
+  maxCoord = Math.max(maxCoord, 
+    Math.sqrt(orig.xm*orig.xm + orig.ym*orig.ym) + origMaxRadius
+  );
+  if (simulated) {
+    maxCoord = Math.max(maxCoord,
+      Math.sqrt(simulated.xm*simulated.xm + simulated.ym*simulated.ym) + simMaxRadius
+    );
+  }
+  
+  const maxPixels = Math.min(cx, cy) * 0.75;
+  const scale = maxPixels / maxCoord;
+  
+  // Gridlines
+  ctx.strokeStyle = 'rgba(55, 65, 81, 0.2)';
+  ctx.lineWidth = 1;
+  
+  const numCircles = 4;
+  for (let i = 1; i <= numCircles; i++) {
+    const r = (maxCoord / numCircles) * i;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * scale, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(156, 163, 175, 0.35)';
+    ctx.font = '8px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText(formatDistanceLabel(r), cx + 4, cy - r * scale + 8);
+  }
+  
+  ctx.beginPath();
+  ctx.moveTo(0, cy); ctx.lineTo(width, cy);
+  ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
+  ctx.stroke();
+  
+  // HBR (15m = 0.015 km)
+  const hbrPx = 0.015 * scale;
+  ctx.fillStyle = 'rgba(244, 63, 94, 0.12)';
+  ctx.strokeStyle = 'rgba(244, 63, 94, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(3.5, hbrPx), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  
+  ctx.fillStyle = '#f43f5e';
+  ctx.font = 'bold 8px Orbitron';
+  ctx.textAlign = 'center';
+  ctx.fillText('PRIMARY', cx, cy - Math.max(7, hbrPx) - 3);
+  
+  function drawCovarianceEllipse(xVal, yVal, c2d, sigmaMultiplier) {
+    if (!c2d) return;
+    const a = c2d[0][0];
+    const b = c2d[0][1];
+    const d = c2d[1][1];
+    
+    const trace = a + d;
+    const diff = a - d;
+    const term = Math.sqrt(diff*diff/4 + b*b);
+    const lambda1 = trace/2 + term;
+    const lambda2 = trace/2 - term;
+    
+    if (lambda1 < 0 || lambda2 < 0) return;
+    
+    const s1 = sigmaMultiplier * Math.sqrt(lambda1);
+    const s2 = sigmaMultiplier * Math.sqrt(lambda2);
+    
+    let theta = 0;
+    if (b === 0) {
+      theta = a >= d ? 0 : Math.PI / 2;
+    } else {
+      theta = 0.5 * Math.atan2(2 * b, diff);
+    }
+    
+    ctx.save();
+    const px = cx + xVal * scale;
+    const py = cy - yVal * scale;
+    ctx.translate(px, py);
+    ctx.rotate(-theta);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s1 * scale, s2 * scale, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  
+  // Draw Original
+  const origX = orig.xm;
+  const origY = orig.ym;
+  const origPx = cx + origX * scale;
+  const origPy = cy - origY * scale;
+  
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+  drawCovarianceEllipse(origX, origY, orig.c2d, 1);
+  ctx.strokeStyle = 'rgba(244, 63, 94, 0.2)';
+  drawCovarianceEllipse(origX, origY, orig.c2d, 2);
+  ctx.strokeStyle = 'rgba(244, 63, 94, 0.1)';
+  drawCovarianceEllipse(origX, origY, orig.c2d, 3);
+  
+  ctx.fillStyle = '#f43f5e';
+  ctx.beginPath();
+  ctx.arc(origPx, origPy, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.font = '8px Inter';
+  ctx.fillStyle = '#f43f5e';
+  ctx.textAlign = 'left';
+  ctx.fillText(' ORIG', origPx + 5, origPy + 3);
+  
+  // Draw Simulated
+  if (simulated) {
+    const simX = simulated.xm;
+    const simY = simulated.ym;
+    const simPx = cx + simX * scale;
+    const simPy = cy - simY * scale;
+    
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+    drawCovarianceEllipse(simX, simY, simulated.c2d, 1);
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+    drawCovarianceEllipse(simX, simY, simulated.c2d, 2);
+    
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath();
+    ctx.arc(simPx, simPy, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#10b981';
+    ctx.textAlign = 'left';
+    ctx.fillText(' SIM', simPx + 5, simPy + 3);
+    
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(origPx, origPy);
+    ctx.lineTo(simPx, simPy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function formatDistanceLabel(km) {
+  if (km < 0.001) return (km * 1000).toFixed(0) + ' m';
+  if (km < 1) return (km * 1000).toFixed(0) + ' m';
+  return km.toFixed(2) + ' km';
+}
+
+function drawDilutionCurve(sim) {
+  const canvas = document.getElementById('sim-dilution-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.scale(dpr, dpr);
+  
+  const width = rect.width;
+  const height = rect.height;
+  
+  const origCurve = sim.original_dilution_curve;
+  const simCurve = sim.simulated_dilution_curve;
+  if (!origCurve || origCurve.length === 0) return;
+  
+  const margin = { top: 15, right: 15, bottom: 20, left: 30 };
+  const graphWidth = width - margin.left - margin.right;
+  const graphHeight = height - margin.top - margin.bottom;
+  
+  const minLog = Math.log10(0.05);
+  const maxLog = Math.log10(100);
+  
+  const getX = (scaleVal) => {
+    const logVal = Math.log10(scaleVal);
+    const fraction = (logVal - minLog) / (maxLog - minLog);
+    return margin.left + fraction * graphWidth;
+  };
+  
+  let maxPc = 1e-6;
+  origCurve.forEach(p => { if (p.pc > maxPc) maxPc = p.pc; });
+  if (simCurve) {
+    simCurve.forEach(p => { if (p.pc > maxPc) maxPc = p.pc; });
+  }
+  
+  maxPc *= 1.15;
+  if (maxPc > 1.0) maxPc = 1.0;
+  
+  const getY = (pcVal) => {
+    const fraction = pcVal / maxPc;
+    return margin.top + graphHeight - fraction * graphHeight;
+  };
+  
+  ctx.strokeStyle = 'rgba(55, 65, 81, 0.2)';
+  ctx.lineWidth = 1;
+  
+  const numYTicks = 3;
+  for (let i = 0; i <= numYTicks; i++) {
+    const pcVal = (maxPc / numYTicks) * i;
+    const y = getY(pcVal);
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(width - margin.right, y);
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(156, 163, 175, 0.4)';
+    ctx.font = '8px Inter';
+    ctx.textAlign = 'right';
+    ctx.fillText(pcVal.toExponential(1).replace('e-0', 'e-').replace('e+00', ''), margin.left - 4, y + 3);
+  }
+  
+  const xTicks = [0.1, 1.0, 10.0, 100.0];
+  xTicks.forEach(s => {
+    const x = getX(s);
+    ctx.beginPath();
+    ctx.moveTo(x, margin.top);
+    ctx.lineTo(x, margin.top + graphHeight);
+    ctx.stroke();
+    
+    ctx.fillStyle = 'rgba(156, 163, 175, 0.4)';
+    ctx.font = '8px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(s + 'x', x, margin.top + graphHeight + 11);
+  });
+  
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#f43f5e';
+  ctx.beginPath();
+  ctx.moveTo(getX(origCurve[0].scale), getY(origCurve[0].pc));
+  for (let i = 1; i < origCurve.length; i++) {
+    ctx.lineTo(getX(origCurve[i].scale), getY(origCurve[i].pc));
+  }
+  ctx.stroke();
+  
+  if (simCurve && simCurve.length > 0) {
+    ctx.strokeStyle = '#10b981';
+    ctx.beginPath();
+    ctx.moveTo(getX(simCurve[0].scale), getY(simCurve[0].pc));
+    for (let i = 1; i < simCurve.length; i++) {
+      ctx.lineTo(getX(simCurve[i].scale), getY(simCurve[i].pc));
+    }
+    ctx.stroke();
+  }
+  
+  const markerX = getX(1.0);
+  
+  const origPc = sim.original_collision_probability;
+  const origY = getY(origPc);
+  ctx.fillStyle = '#f43f5e';
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(markerX, origY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  
+  const simPc = sim.simulated_collision_probability;
+  const simY = getY(simPc);
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.arc(markerX, simY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+
 async function runManeuverSimulation(isAutoSolved = false) {
   const select = document.getElementById('sim-conjunction-select');
   if (!select || select.value === "") {
@@ -1791,7 +2153,10 @@ async function runManeuverSimulation(isAutoSolved = false) {
         }
       }
       
+      activeSimulationResult = d;
       drawSimulationChart(d.time_series, d.burn_hours_before_tca);
+      drawBPlaneChart(d);
+      drawDilutionCurve(d);
       
       await fetchHistory();
     } else {

@@ -492,64 +492,10 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
         risk = risk_level(fine_min_dist)
         tca_from_now = (fine_tca - now).total_seconds() / 3600.0
 
-        def get_rtn_sigmas(item):
-            if item.get("is_custom"):
-                sig_r = item.get("radial_error_m", 100.0) / 1000.0
-                sig_t = item.get("transverse_error_m", 500.0) / 1000.0
-                sig_n = item.get("normal_error_m", 200.0) / 1000.0
-            else:
-                obj_type = item.get("object_type", "PAYLOAD").upper()
-                if "DEBRIS" in obj_type or "BODY" in obj_type or "ROCKET" in obj_type:
-                    sig_r = 0.25
-                    sig_t = 1.2
-                    sig_n = 0.5
-                else:
-                    sig_r = 0.1
-                    sig_t = 0.5
-                    sig_n = 0.2
-            return sig_r, sig_t, sig_n
-
-        sig_r1, sig_t1, sig_n1 = get_rtn_sigmas(item1)
-        C_eci1 = rotate_covariance_rtn_to_eci(fine_pos1, fine_vel1, sig_r1, sig_t1, sig_n1)
-
-        sig_r2, sig_t2, sig_n2 = get_rtn_sigmas(item2)
-        C_eci2 = rotate_covariance_rtn_to_eci(fine_pos2, fine_vel2, sig_r2, sig_t2, sig_n2)
-
-        C_eci = [[C_eci1[a][b] + C_eci2[a][b] for b in range(3)] for a in range(3)]
-
-        rel_pos = [fine_pos2[0] - fine_pos1[0], fine_pos2[1] - fine_pos1[1], fine_pos2[2] - fine_pos1[2]]
-        rel_vel = [fine_vel2[0] - fine_vel1[0], fine_vel2[1] - fine_vel1[1], fine_vel2[2] - fine_vel1[2]]
-
-        v_mag = math.sqrt(rel_vel[0]**2 + rel_vel[1]**2 + rel_vel[2]**2)
-        if v_mag == 0:
-            prob = 0.0
-        else:
-            uz = [rel_vel[0]/v_mag, rel_vel[1]/v_mag, rel_vel[2]/v_mag]
-            cx = rel_vel[1]*rel_pos[2] - rel_vel[2]*rel_pos[1]
-            cy = rel_vel[2]*rel_pos[0] - rel_vel[0]*rel_pos[2]
-            cz = rel_vel[0]*rel_pos[1] - rel_vel[1]*rel_pos[0]
-            c_mag = math.sqrt(cx**2 + cy**2 + cz**2)
-
-            if c_mag < 1e-9:
-                if abs(uz[0]) > 0.9:
-                    uy = [0.0, 1.0, 0.0]
-                else:
-                    uy = [1.0, 0.0, 0.0]
-                dot = uy[0]*uz[0] + uy[1]*uz[1] + uy[2]*uz[2]
-                uy = [uy[a] - dot*uz[a] for a in range(3)]
-                uy_mag = math.sqrt(uy[0]**2 + uy[1]**2 + uy[2]**2)
-                uy = [x / uy_mag for x in uy]
-            else:
-                uy = [cx / c_mag, cy / c_mag, cz / c_mag]
-
-            ux = [uy[1]*uz[2] - uy[2]*uz[1], uy[2]*uz[0] - uy[0]*uz[2], uy[0]*uz[1] - uy[1]*uz[0]]
-
-            xm = rel_pos[0]*ux[0] + rel_pos[1]*ux[1] + rel_pos[2]*ux[2]
-            ym = rel_pos[0]*uy[0] + rel_pos[1]*uy[1] + rel_pos[2]*uy[2]
-
-            C_2d = project_covariance_to_encounter_plane(C_eci, ux, uy)
-            prob = calculate_probability_of_collision(xm, ym, C_2d, 0.015)
-
+        prob, xm, ym, C_2d = compute_pc_details_between_states(
+            fine_pos1, fine_vel1, item1,
+            fine_pos2, fine_vel2, item2
+        )
         prob_str = format_probability_str(prob)
 
         event = {
@@ -570,7 +516,10 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
             "sat1_id": item1["norad_id"],
             "sat2_id": item2["norad_id"],
             "collision_probability": prob,
-            "collision_probability_str": prob_str
+            "collision_probability_str": prob_str,
+            "bplane_xm": xm,
+            "bplane_ym": ym,
+            "bplane_c2d": C_2d
         }
 
 
@@ -850,7 +799,7 @@ def calculate_probability_of_collision(xm: float, ym: float, C_2d: list[list[flo
     return min(1.0, max(0.0, total_integral))
 
 
-def compute_pc_between_states(pos1: list[float], vel1: list[float], item1: dict[str, Any], pos2: list[float], vel2: list[float], item2: dict[str, Any]) -> float:
+def compute_pc_details_between_states(pos1: list[float], vel1: list[float], item1: dict[str, Any], pos2: list[float], vel2: list[float], item2: dict[str, Any]) -> tuple[float, float, float, list[list[float]]]:
     def get_rtn_sigmas(item):
         if item.get("is_custom") or "radial_error_m" in item:
             sig_r = item.get("radial_error_m", 100.0) / 1000.0
@@ -881,7 +830,7 @@ def compute_pc_between_states(pos1: list[float], vel1: list[float], item1: dict[
 
     v_mag = math.sqrt(rel_vel[0]**2 + rel_vel[1]**2 + rel_vel[2]**2)
     if v_mag == 0:
-        return 0.0
+        return 0.0, 0.0, 0.0, [[0.0, 0.0], [0.0, 0.0]]
 
     uz = [rel_vel[0]/v_mag, rel_vel[1]/v_mag, rel_vel[2]/v_mag]
     cx = rel_vel[1]*rel_pos[2] - rel_vel[2]*rel_pos[1]
@@ -907,7 +856,23 @@ def compute_pc_between_states(pos1: list[float], vel1: list[float], item1: dict[
     ym = rel_pos[0]*uy[0] + rel_pos[1]*uy[1] + rel_pos[2]*uy[2]
 
     C_2d = project_covariance_to_encounter_plane(C_eci, ux, uy)
-    return calculate_probability_of_collision(xm, ym, C_2d, 0.015)
+    prob = calculate_probability_of_collision(xm, ym, C_2d, 0.015)
+    return prob, xm, ym, C_2d
+
+
+def compute_pc_between_states(pos1: list[float], vel1: list[float], item1: dict[str, Any], pos2: list[float], vel2: list[float], item2: dict[str, Any]) -> float:
+    prob, _, _, _ = compute_pc_details_between_states(pos1, vel1, item1, pos2, vel2, item2)
+    return prob
+
+
+def compute_dilution_curve(xm: float, ym: float, C_2d: list[list[float]]) -> list[dict[str, Any]]:
+    scales = [0.05, 0.1, 0.2, 0.5, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+    curve = []
+    for s in scales:
+        scaled_C2d = [[C_2d[a][b] * (s**2) for b in range(2)] for a in range(2)]
+        prob = calculate_probability_of_collision(xm, ym, scaled_C2d, 0.015)
+        curve.append({"scale": s, "pc": prob})
+    return curve
 
 
 def format_probability_str(prob: float) -> str:
@@ -1589,17 +1554,19 @@ def simulate_avoidance_maneuver(
         
     sim_dist = math.sqrt((r_burned_tca[0]-r_unburned_tca[0])**2 + (r_burned_tca[1]-r_unburned_tca[1])**2 + (r_burned_tca[2]-r_unburned_tca[2])**2)
     
-    original_collision_probability = compute_pc_between_states(
+    original_collision_probability, orig_xm, orig_ym, orig_c2d = compute_pc_details_between_states(
         pos1_tca, vel1_tca, sat1_item,
         pos2_tca, vel2_tca, sat2_item
     )
     original_collision_probability_str = format_probability_str(original_collision_probability)
+    original_dilution_curve = compute_dilution_curve(orig_xm, orig_ym, orig_c2d)
     
-    simulated_collision_probability = compute_pc_between_states(
+    simulated_collision_probability, sim_xm, sim_ym, sim_c2d = compute_pc_details_between_states(
         pos1_sim_tca, vel1_sim_tca, sat1_item,
         pos2_sim_tca, vel2_sim_tca, sat2_item
     )
     simulated_collision_probability_str = format_probability_str(simulated_collision_probability)
+    simulated_dilution_curve = compute_dilution_curve(sim_xm, sim_ym, sim_c2d)
 
     time_series = []
     for step in range(11):
@@ -1673,7 +1640,11 @@ def simulate_avoidance_maneuver(
         "original_collision_probability": original_collision_probability,
         "original_collision_probability_str": original_collision_probability_str,
         "simulated_collision_probability": simulated_collision_probability,
-        "simulated_collision_probability_str": simulated_collision_probability_str
+        "simulated_collision_probability_str": simulated_collision_probability_str,
+        "original_bplane": {"xm": orig_xm, "ym": orig_ym, "c2d": orig_c2d},
+        "simulated_bplane": {"xm": sim_xm, "ym": sim_ym, "c2d": sim_c2d},
+        "original_dilution_curve": original_dilution_curve,
+        "simulated_dilution_curve": simulated_dilution_curve
     }
 
 
