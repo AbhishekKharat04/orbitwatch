@@ -519,7 +519,11 @@ def detect_time_series_conjunctions(catalog: list[dict[str, Any]], threshold_km:
             "collision_probability_str": prob_str,
             "bplane_xm": xm,
             "bplane_ym": ym,
-            "bplane_c2d": C_2d
+            "bplane_c2d": C_2d,
+            "sat1_pos_tca": list(fine_pos1) if fine_pos1 else None,
+            "sat1_vel_tca": list(fine_vel1) if fine_vel1 else None,
+            "sat2_pos_tca": list(fine_pos2) if fine_pos2 else None,
+            "sat2_vel_tca": list(fine_vel2) if fine_vel2 else None
         }
 
 
@@ -1644,7 +1648,21 @@ def simulate_avoidance_maneuver(
         "original_bplane": {"xm": orig_xm, "ym": orig_ym, "c2d": orig_c2d},
         "simulated_bplane": {"xm": sim_xm, "ym": sim_ym, "c2d": sim_c2d},
         "original_dilution_curve": original_dilution_curve,
-        "simulated_dilution_curve": simulated_dilution_curve
+        "simulated_dilution_curve": simulated_dilution_curve,
+        "burn_epoch": t_burn.isoformat(),
+        "burn_satellite_pos_burn": list(r_b) if r_b else None,
+        "burn_satellite_vel_burn_orig": list(v_b) if v_b else None,
+        "burn_satellite_vel_burn_post": list(v_b_new) if v_b_new else None,
+        "unburned_satellite_pos_burn": list(pos2_b) if is_sat1 else list(pos1_b),
+        "unburned_satellite_vel_burn": list(vel2_b) if is_sat1 else list(vel1_b),
+        "sat1_pos_tca": list(pos1_tca) if pos1_tca else None,
+        "sat1_vel_tca": list(vel1_tca) if vel1_tca else None,
+        "sat2_pos_tca": list(pos2_tca) if pos2_tca else None,
+        "sat2_vel_tca": list(vel2_tca) if vel2_tca else None,
+        "sat1_sim_pos_tca": list(pos1_sim_tca) if pos1_sim_tca else None,
+        "sat1_sim_vel_tca": list(vel1_sim_tca) if vel1_sim_tca else None,
+        "sat2_sim_pos_tca": list(pos2_sim_tca) if pos2_sim_tca else None,
+        "sat2_sim_vel_tca": list(vel2_sim_tca) if vel2_sim_tca else None
     }
 
 

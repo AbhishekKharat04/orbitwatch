@@ -256,6 +256,55 @@
             <span id="orbit-focus">Drag to rotate. Scroll to zoom. Click row to plot path.</span>
             <span class="orbit-chip" id="orbit-count">0 objects</span>
           </div>
+          <!-- Conjunction Playback Timeline HUD -->
+          <div id="playback-panel" style="display: none; border-top: 1px solid var(--border); padding: 0.75rem 0.25rem 0.25rem; margin-top: 0.5rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+              <span style="font-family:'Orbitron', sans-serif; font-size:0.72rem; font-weight:700; color:var(--accent); letter-spacing:0.05em;">📡 CONJUNCTION PLAYBACK HUD</span>
+              <span id="playback-status-badge" class="orbit-chip" style="background:rgba(244, 63, 94, 0.15); color:var(--red); border:1px solid rgba(244, 63, 94, 0.35); font-size:0.58rem;">ACTIVE THREAT</span>
+            </div>
+            
+            <!-- Live Telemetry Readout -->
+            <div style="grid-template-columns: 1.15fr 0.85fr; display: grid; gap: 0.5rem; background:rgba(3, 7, 18, 0.5); padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--border); font-size:0.68rem; font-family:'Orbitron', sans-serif; margin-bottom: 0.5rem;">
+              <div>
+                <span style="color:var(--muted)">TIME RELATIVE TO TCA:</span>
+                <span id="playback-hud-offset" style="color:#ffffff; font-weight:bold; margin-left:4px;">0.00m</span>
+              </div>
+              <div style="text-align: right;">
+                <span id="playback-hud-dist-label" style="color:var(--muted)">DISTANCE:</span>
+                <span id="playback-hud-dist" style="color:var(--red); font-weight:bold; margin-left:4px;">-- km</span>
+              </div>
+            </div>
+            
+            <!-- Slider Control -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <span id="playback-label-min" style="font-size:0.6rem; color:var(--muted); width: 65px; text-align: right;">-90m</span>
+              <input type="range" id="playback-slider" min="-90" max="90" value="0" step="0.5" style="flex:1; accent-color:var(--accent); height:4px; border-radius:2px; cursor:pointer; background:rgba(55,65,81,0.5); border:none; outline:none;" oninput="onPlaybackSliderInput(this.value)">
+              <span id="playback-label-max" style="font-size:0.6rem; color:var(--muted); width: 65px;">+90m</span>
+            </div>
+            
+            <!-- Playback Buttons -->
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+              <div style="display: flex; gap: 0.4rem;">
+                <button id="btn-playback-play" onclick="togglePlaybackPlay()" class="refresh-btn" style="background:var(--surface); border:1px solid var(--border); color:var(--text); padding: 3px 8px; border-radius: 4px; font-size:0.65rem; font-family:inherit; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:3px; transition:all 0.2s;">
+                  <span id="playback-play-icon">⏵</span> <span id="playback-play-text">Play</span>
+                </button>
+                <button onclick="resetPlaybackToTca()" class="refresh-btn" style="background:none; border:1px solid var(--border); color:var(--muted); padding: 3px 6px; border-radius: 4px; font-size:0.65rem; cursor:pointer;">
+                  🔄 Reset to TCA
+                </button>
+              </div>
+              
+              <div style="display: flex; align-items: center; gap: 0.3rem;">
+                <span style="font-size:0.62rem; color:var(--muted);">RATE:</span>
+                <select id="playback-speed" onchange="onPlaybackSpeedChange(this.value)" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:0.65rem; border-radius:4px; padding:2px 4px; font-family:inherit; outline:none; cursor:pointer;">
+                  <option value="1">1x (Real)</option>
+                  <option value="10">10x</option>
+                  <option value="60" selected>60x (1m/s)</option>
+                  <option value="300">300x (5m/s)</option>
+                  <option value="600">600x (10m/s)</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -683,6 +732,13 @@ let selectedSatelliteName = '';
 let chatHistory = [];
 let activeSimulationResult = null;
 
+// Playback Timeline variables
+let playbackTimeOffset = 0; // in seconds relative to TCA
+let isPlaybackPlaying = false;
+let playbackSpeed = 60; 
+let playbackFocusedConjunction = null;
+let lastPlaybackFrameTime = Date.now();
+
 
 // Interactive Globe rotation & zoom
 let targetRotationX = 0.6;
@@ -855,9 +911,215 @@ function renderConjunctions(events) {
   populateSimConjunctionDropdown(events);
 }
 
+function propagateCircular(r0, v0, t) {
+  if (!r0 || !v0) return [0, 0, 0];
+  const r0_len = Math.hypot(...r0);
+  const v0_len = Math.hypot(...v0);
+  if (v0_len === 0) return [...r0];
+  const tau = r0_len / v0_len;
+  
+  const cos = Math.cos(t / tau);
+  const sin = Math.sin(t / tau);
+  
+  return [
+    r0[0] * cos + v0[0] * tau * sin,
+    r0[1] * cos + v0[1] * tau * sin,
+    r0[2] * cos + v0[2] * tau * sin
+  ];
+}
+
+function calculatePlaybackDistance(conjunction, offsetSec) {
+  if (!conjunction.sat1_pos_tca || !conjunction.sat2_pos_tca) return null;
+  
+  const r1_tca = conjunction.sat1_pos_tca;
+  const v1_tca = conjunction.sat1_vel_tca;
+  const r2_tca = conjunction.sat2_pos_tca;
+  const v2_tca = conjunction.sat2_vel_tca;
+  
+  const pos1_orig = propagateCircular(r1_tca, v1_tca, offsetSec);
+  const pos2_orig = propagateCircular(r2_tca, v2_tca, offsetSec);
+  const orig_d = Math.hypot(pos1_orig[0] - pos2_orig[0], pos1_orig[1] - pos2_orig[1], pos1_orig[2] - pos2_orig[2]);
+  
+  let sim_d = null;
+  if (activeSimulationResult) {
+    const sim = activeSimulationResult;
+    const isSat1Burned = sim.burn_satellite === 'sat1';
+    
+    const burnOffsetSec = -sim.burn_hours_before_tca * 3600;
+    const t_burn_rel = offsetSec - burnOffsetSec;
+    
+    if (t_burn_rel >= 0) {
+      const r_b = sim.burn_satellite_pos_burn;
+      const v_b_post = sim.burn_satellite_vel_burn_post;
+      const r_u = sim.unburned_satellite_pos_burn;
+      const v_u = sim.unburned_satellite_vel_burn;
+      
+      const pos_burned = propagateCircular(r_b, v_b_post, t_burn_rel);
+      const pos_unburned = propagateCircular(r_u, v_u, t_burn_rel);
+      sim_d = Math.hypot(pos_burned[0] - pos_unburned[0], pos_burned[1] - pos_unburned[1], pos_burned[2] - pos_unburned[2]);
+    } else {
+      sim_d = orig_d;
+    }
+  }
+  
+  return { orig: orig_d, sim: sim_d };
+}
+
+function updatePlaybackHUD() {
+  const offsetMin = playbackTimeOffset / 60.0;
+  
+  const hudOffset = document.getElementById('playback-hud-offset');
+  if (hudOffset) {
+    if (offsetMin < 0) {
+      hudOffset.textContent = `${Math.abs(offsetMin).toFixed(2)}m before TCA`;
+    } else if (offsetMin > 0) {
+      hudOffset.textContent = `${offsetMin.toFixed(2)}m after TCA`;
+    } else {
+      hudOffset.textContent = `TCA (0.00m)`;
+    }
+  }
+  
+  const hudDistVal = document.getElementById('playback-hud-dist');
+  const hudDistLabel = document.getElementById('playback-hud-dist-label');
+  if (hudDistVal && playbackFocusedConjunction) {
+    const dists = calculatePlaybackDistance(playbackFocusedConjunction, playbackTimeOffset);
+    if (dists) {
+      if (activeSimulationResult) {
+        hudDistLabel.textContent = "ORIG / SIM:";
+        hudDistVal.textContent = `${dists.orig.toFixed(2)} km / ${dists.sim.toFixed(2)} km`;
+        if (dists.sim < 5.0) {
+          hudDistVal.style.color = "var(--red)";
+        } else if (dists.sim < 25.0) {
+          hudDistVal.style.color = "var(--orange)";
+        } else {
+          hudDistVal.style.color = "var(--green)";
+        }
+      } else {
+        hudDistLabel.textContent = "SEPARATION:";
+        hudDistVal.textContent = `${dists.orig.toFixed(2)} km`;
+        if (dists.orig < 5.0) {
+          hudDistVal.style.color = "var(--red)";
+        } else if (dists.orig < 25.0) {
+          hudDistVal.style.color = "var(--orange)";
+        } else {
+          hudDistVal.style.color = "var(--green)";
+        }
+      }
+    }
+  }
+}
+
+function activatePlayback(conjunction, simulationResult = null) {
+  playbackFocusedConjunction = conjunction;
+  isPlaybackPlaying = false;
+  
+  const playBtnIcon = document.getElementById('playback-play-icon');
+  const playBtnText = document.getElementById('playback-play-text');
+  if (playBtnIcon) playBtnIcon.textContent = '⏵';
+  if (playBtnText) playBtnText.textContent = 'Play';
+  
+  const panel = document.getElementById('playback-panel');
+  if (panel) panel.style.display = 'block';
+  
+  const slider = document.getElementById('playback-slider');
+  const labelMin = document.getElementById('playback-label-min');
+  const labelMax = document.getElementById('playback-label-max');
+  const statusBadge = document.getElementById('playback-status-badge');
+  
+  if (simulationResult) {
+    activeSimulationResult = simulationResult;
+    const leadHours = simulationResult.burn_hours_before_tca;
+    const leadMins = -leadHours * 60;
+    
+    if (slider) {
+      slider.min = leadMins;
+      slider.max = 30; 
+      slider.value = leadMins; 
+    }
+    if (labelMin) labelMin.textContent = `${leadMins}m (Burn)`;
+    if (labelMax) labelMax.textContent = `+30m (TCA)`;
+    if (statusBadge) {
+      statusBadge.textContent = "SIMULATED BURN ACTIVE";
+      statusBadge.style.background = "rgba(16, 185, 129, 0.15)";
+      statusBadge.style.color = "var(--green)";
+      statusBadge.style.borderColor = "rgba(16, 185, 129, 0.35)";
+    }
+    playbackTimeOffset = leadMins * 60.0;
+  } else {
+    activeSimulationResult = null;
+    if (slider) {
+      slider.min = -90;
+      slider.max = 90;
+      slider.value = 0; 
+    }
+    if (labelMin) labelMin.textContent = `-90m`;
+    if (labelMax) labelMax.textContent = `+90m`;
+    if (statusBadge) {
+      statusBadge.textContent = "ACTIVE THREAT";
+      statusBadge.style.background = "rgba(244, 63, 94, 0.15)";
+      statusBadge.style.color = "var(--red)";
+      statusBadge.style.borderColor = "rgba(244, 63, 94, 0.35)";
+    }
+    playbackTimeOffset = 0;
+  }
+  
+  updatePlaybackHUD();
+}
+
+function deactivatePlayback() {
+  playbackFocusedConjunction = null;
+  activeSimulationResult = null;
+  isPlaybackPlaying = false;
+  const panel = document.getElementById('playback-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function togglePlaybackPlay() {
+  isPlaybackPlaying = !isPlaybackPlaying;
+  const playBtnIcon = document.getElementById('playback-play-icon');
+  const playBtnText = document.getElementById('playback-play-text');
+  
+  if (isPlaybackPlaying) {
+    if (playBtnIcon) playBtnIcon.textContent = '⏸';
+    if (playBtnText) playBtnText.textContent = 'Pause';
+    lastPlaybackFrameTime = Date.now();
+  } else {
+    if (playBtnIcon) playBtnIcon.textContent = '⏵';
+    if (playBtnText) playBtnText.textContent = 'Play';
+  }
+}
+
+function resetPlaybackToTca() {
+  const slider = document.getElementById('playback-slider');
+  if (activeSimulationResult) {
+    const leadHours = activeSimulationResult.burn_hours_before_tca;
+    const leadMins = -leadHours * 60;
+    playbackTimeOffset = leadMins * 60.0; 
+    if (slider) slider.value = leadMins;
+  } else {
+    playbackTimeOffset = 0; 
+    if (slider) slider.value = 0;
+  }
+  updatePlaybackHUD();
+}
+
+function onPlaybackSliderInput(val) {
+  playbackTimeOffset = parseFloat(val) * 60.0;
+  updatePlaybackHUD();
+}
+
+function onPlaybackSpeedChange(val) {
+  playbackSpeed = parseFloat(val);
+}
+
 function selectConjunctionPair(sat1, sat2) {
   selectedSatelliteName = sat1;
   renderSatTable();
+  
+  const conj = conjunctionEvents.find(e => (e.sat1 === sat1 && e.sat2 === sat2) || (e.sat1 === sat2 && e.sat2 === sat1));
+  if (conj) {
+    activatePlayback(conj);
+  }
 }
 
 function filterAndRenderSatellites() {
@@ -899,6 +1161,12 @@ function renderSatTable() {
 function onSelectSatellite(name) {
   selectedSatelliteName = name;
   renderSatTable();
+  
+  if (playbackFocusedConjunction) {
+    if (playbackFocusedConjunction.sat1 !== name && playbackFocusedConjunction.sat2 !== name) {
+      deactivatePlayback();
+    }
+  }
 }
 
 // 3D coordinate rotation
@@ -1011,9 +1279,51 @@ function renderOrbit() {
   const typeQuery = document.getElementById('sat-filter-type').value;
 
   const projected = satellites.map((sat) => {
-    const nx = sat.x / maxDist;
-    const ny = sat.y / maxDist;
-    const nz = sat.z / maxDist;
+    let satX = sat.x;
+    let satY = sat.y;
+    let satZ = sat.z;
+    
+    if (playbackFocusedConjunction) {
+      const timeFromEpochSec = (playbackFocusedConjunction.tca_hours_from_now * 3600) + playbackTimeOffset;
+      
+      const isBurnedSat = activeSimulationResult && sat.name === (activeSimulationResult.burn_satellite === 'sat1' ? activeSimulationResult.sat1_name : activeSimulationResult.sat2_name);
+      const isUnburnedSat = activeSimulationResult && sat.name === (activeSimulationResult.burn_satellite === 'sat1' ? activeSimulationResult.sat2_name : activeSimulationResult.sat1_name);
+      
+      if (isBurnedSat) {
+        const burnOffsetSec = -activeSimulationResult.burn_hours_before_tca * 3600;
+        const t_burn_rel = playbackTimeOffset - burnOffsetSec;
+        if (t_burn_rel >= 0) {
+          const r_b = activeSimulationResult.burn_satellite_pos_burn;
+          const v_b = activeSimulationResult.burn_satellite_vel_burn_orig;
+          const pos = propagateCircular(r_b, v_b, t_burn_rel);
+          satX = pos[0]; satY = pos[1]; satZ = pos[2];
+        } else {
+          const pos = propagateCircular([sat.x, sat.y, sat.z], [sat.vx, sat.vy, sat.vz], timeFromEpochSec);
+          satX = pos[0]; satY = pos[1]; satZ = pos[2];
+        }
+      } else if (isUnburnedSat) {
+        const burnOffsetSec = -activeSimulationResult.burn_hours_before_tca * 3600;
+        const t_burn_rel = playbackTimeOffset - burnOffsetSec;
+        if (t_burn_rel >= 0) {
+          const r_u = activeSimulationResult.unburned_satellite_pos_burn;
+          const v_u = activeSimulationResult.unburned_satellite_vel_burn;
+          const pos = propagateCircular(r_u, v_u, t_burn_rel);
+          satX = pos[0]; satY = pos[1]; satZ = pos[2];
+        } else {
+          const pos = propagateCircular([sat.x, sat.y, sat.z], [sat.vx, sat.vy, sat.vz], timeFromEpochSec);
+          satX = pos[0]; satY = pos[1]; satZ = pos[2];
+        }
+      } else {
+        if (sat.vx && sat.vy && sat.vz) {
+          const pos = propagateCircular([sat.x, sat.y, sat.z], [sat.vx, sat.vy, sat.vz], timeFromEpochSec);
+          satX = pos[0]; satY = pos[1]; satZ = pos[2];
+        }
+      }
+    }
+
+    const nx = satX / maxDist;
+    const ny = satY / maxDist;
+    const nz = satZ / maxDist;
 
     // Apply rotation
     const r = rotate3D(nx, ny, nz, rotationX, rotationY);
@@ -1046,6 +1356,41 @@ function renderOrbit() {
     return { sat, px, py, rz: r.z, perspective, color, isDebris, isMatch };
   });
 
+  // Inject simulated satellite if active simulation and past burn
+  if (playbackFocusedConjunction && activeSimulationResult) {
+    const isSat1Burned = activeSimulationResult.burn_satellite === 'sat1';
+    const burnOffsetSec = -activeSimulationResult.burn_hours_before_tca * 3600;
+    const t_burn_rel = playbackTimeOffset - burnOffsetSec;
+    
+    if (t_burn_rel >= 0) {
+      const r_b = activeSimulationResult.burn_satellite_pos_burn;
+      const v_b_post = activeSimulationResult.burn_satellite_vel_burn_post;
+      const simPos = propagateCircular(r_b, v_b_post, t_burn_rel);
+      
+      const nx = simPos[0] / maxDist;
+      const ny = simPos[1] / maxDist;
+      const nz = simPos[2] / maxDist;
+      const r = rotate3D(nx, ny, nz, rotationX, rotationY);
+      const scaleFactor = 170 * zoom;
+      const perspective = 1 / (1.5 - r.z * 0.4);
+      const px = cx + r.x * scaleFactor * perspective;
+      const py = cy + r.y * scaleFactor * perspective;
+      
+      const simName = (isSat1Burned ? activeSimulationResult.sat1_name : activeSimulationResult.sat2_name) + " (SIM)";
+      projected.push({
+        sat: { name: simName, alt_km: Math.hypot(...simPos) - EARTH_RADIUS_KM, isSimulated: true },
+        px,
+        py,
+        rz: r.z,
+        perspective,
+        color: 'rgba(16, 185, 129, 0.95)',
+        isDebris: false,
+        isMatch: true,
+        isSimulated: true
+      });
+    }
+  }
+
   // Render full orbital track of selected satellite
   if (selectedSatelliteName) {
     const selectedSat = satellites.find(s => s.name === selectedSatelliteName);
@@ -1055,7 +1400,7 @@ function renderOrbit() {
   }
 
   // Draw points (back to front)
-  projected.sort((a,b) => a.rz - b.rz).forEach(({ sat, px, py, perspective, color, isDebris, isMatch }) => {
+  projected.sort((a,b) => a.rz - b.rz).forEach(({ sat, px, py, perspective, color, isDebris, isMatch, isSimulated }) => {
     // Draw dots
     const radius = (isDebris ? 2.5 : 4) * perspective;
     ctx.beginPath();
@@ -1065,10 +1410,10 @@ function renderOrbit() {
 
     // Pulse glows ONLY for active matching selected satellites or critical nodes
     if (isMatch) {
-      if (sat.name === selectedSatelliteName) {
+      if (sat.name === selectedSatelliteName || isSimulated) {
         ctx.beginPath();
         ctx.arc(px, py, radius + 5 + Math.sin(Date.now() / 100) * 3, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.strokeStyle = isSimulated ? 'rgba(16, 185, 129, 0.55)' : 'rgba(255,255,255,0.4)';
         ctx.lineWidth = 1;
         ctx.stroke();
       } else {
@@ -1085,10 +1430,10 @@ function renderOrbit() {
   drawConjunctionAlertLines(ctx, cx, cy, conjunctionEvents, projected);
 
   // Draw labels for top clusters or selected satellite
-  projected.forEach(({ sat, px, py, rz }) => {
-    if (sat.name === selectedSatelliteName || (rz > 0 && Math.random() < 0.04)) {
-      ctx.fillStyle = sat.name === selectedSatelliteName ? '#ffffff' : 'rgba(226, 232, 240, 0.6)';
-      ctx.font = sat.name === selectedSatelliteName ? 'bold 8.5px Inter' : '7.5px Inter';
+  projected.forEach(({ sat, px, py, rz, isSimulated }) => {
+    if (sat.name === selectedSatelliteName || isSimulated || (rz > 0 && Math.random() < 0.04)) {
+      ctx.fillStyle = (sat.name === selectedSatelliteName || isSimulated) ? '#ffffff' : 'rgba(226, 232, 240, 0.6)';
+      ctx.font = (sat.name === selectedSatelliteName || isSimulated) ? 'bold 8.5px Inter' : '7.5px Inter';
       ctx.fillText(sat.name, px + 7, py + 3);
     }
   });
@@ -1142,6 +1487,68 @@ function drawSatelliteOrbitTrack(ctx, cx, cy, sat, rotX, rotY, maxDist, zoom) {
   ctx.setLineDash([4, 4]);
   ctx.stroke();
   ctx.setLineDash([]); // clear dash
+
+  // If active simulation, draw simulated post-burn track
+  if (activeSimulationResult && sat.name === (activeSimulationResult.burn_satellite === 'sat1' ? activeSimulationResult.sat1_name : activeSimulationResult.sat2_name)) {
+    const sim = activeSimulationResult;
+    const r_b = sim.burn_satellite_pos_burn;
+    const v_b_post = sim.burn_satellite_vel_burn_post;
+    if (r_b && v_b_post) {
+      const burnOffsetSec = -sim.burn_hours_before_tca * 3600;
+      const totalPropSec = Math.abs(burnOffsetSec) + 1800; // Propagate from burn epoch to TCA + 30m
+      
+      ctx.beginPath();
+      let firstSim = true;
+      const numSteps = 60;
+      for (let s = 0; s <= numSteps; s++) {
+        const t = (totalPropSec / numSteps) * s;
+        const pos = propagateCircular(r_b, v_b_post, t);
+        
+        const nx = pos[0] / maxDist;
+        const ny = pos[1] / maxDist;
+        const nz = pos[2] / maxDist;
+        
+        const r = rotate3D(nx, ny, nz, rotX, rotY);
+        const scaleFactor = 170 * zoom;
+        const perspective = 1 / (1.5 - r.z * 0.4);
+        const px = cx + r.x * scaleFactor * perspective;
+        const py = cy + r.y * scaleFactor * perspective;
+        
+        if (firstSim) {
+          ctx.moveTo(px, py);
+          firstSim = false;
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.55)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      // Draw burn event marker on the orbit
+      const burnNx = r_b[0] / maxDist;
+      const burnNy = r_b[1] / maxDist;
+      const burnNz = r_b[2] / maxDist;
+      const burnRot = rotate3D(burnNx, burnNy, burnNz, rotX, rotY);
+      const burnPerspective = 1 / (1.5 - burnRot.z * 0.4);
+      const burnPx = cx + burnRot.x * 170 * zoom * burnPerspective;
+      const burnPy = cy + burnRot.y * 170 * zoom * burnPerspective;
+      
+      ctx.fillStyle = '#ffaa00';
+      ctx.beginPath();
+      ctx.arc(burnPx, burnPy, 4.5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      ctx.fillStyle = '#ffaa00';
+      ctx.font = 'bold 7.5px Orbitron';
+      ctx.fillText('BURN EVENT', burnPx + 8, burnPy + 3);
+    }
+  }
 }
 
 function drawConjunctionAlertLines(ctx, cx, cy, events, projected) {
@@ -1149,6 +1556,14 @@ function drawConjunctionAlertLines(ctx, cx, cy, events, projected) {
     const p1 = projected.find(p => p.sat.name === e.sat1);
     const p2 = projected.find(p => p.sat.name === e.sat2);
     if (p1 && p2) {
+      const isSimConjunction = activeSimulationResult && 
+        ((activeSimulationResult.sat1_name === e.sat1 && activeSimulationResult.sat2_name === e.sat2) ||
+         (activeSimulationResult.sat1_name === e.sat2 && activeSimulationResult.sat2_name === e.sat1));
+      
+      const isSat1Burned = isSimConjunction && activeSimulationResult.burn_satellite === 'sat1';
+      const simNodeName = isSimConjunction ? ((isSat1Burned ? e.sat1 : e.sat2) + " (SIM)") : null;
+      const pSim = simNodeName ? projected.find(p => p.sat.name === simNodeName) : null;
+
       ctx.beginPath();
       ctx.moveTo(p1.px, p1.py);
       ctx.lineTo(p2.px, p2.py);
@@ -1162,7 +1577,6 @@ function drawConjunctionAlertLines(ctx, cx, cy, events, projected) {
       ctx.lineWidth = 1.2 + Math.abs(Math.sin(Date.now() / 250)) * 1.5;
       ctx.stroke();
 
-      // Pulsing radar tracking ring around targets
       ctx.beginPath();
       ctx.arc(p1.px, p1.py, 10 + Math.sin(Date.now() / 150) * 3, 0, Math.PI*2);
       ctx.strokeStyle = color;
@@ -1174,6 +1588,25 @@ function drawConjunctionAlertLines(ctx, cx, cy, events, projected) {
       ctx.strokeStyle = color;
       ctx.lineWidth = 0.8;
       ctx.stroke();
+
+      if (pSim) {
+        const otherNode = isSat1Burned ? p2 : p1;
+        ctx.beginPath();
+        ctx.moveTo(pSim.px, pSim.py);
+        ctx.lineTo(otherNode.px, otherNode.py);
+        
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.75)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        ctx.beginPath();
+        ctx.arc(pSim.px, pSim.py, 10 + Math.sin(Date.now() / 150) * 3, 0, Math.PI*2);
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.75)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      }
     }
   });
 }
@@ -1186,6 +1619,7 @@ function updateThreshold(val) {
 function onCatalogChange(val) {
   selectedSatelliteName = '';
   activeSimulationResult = null;
+  deactivatePlayback();
   const resultsBox = document.getElementById('sim-results-box');
   if (resultsBox) resultsBox.style.display = 'none';
   refreshAll();
@@ -1623,6 +2057,7 @@ function onSimConjunctionChange() {
       <option value="sat1">Satellite 1</option>
       <option value="sat2">Satellite 2</option>
     `;
+    deactivatePlayback();
     return;
   }
   
@@ -1631,6 +2066,7 @@ function onSimConjunctionChange() {
     <option value="sat1">${event.sat1}</option>
     <option value="sat2">${event.sat2}</option>
   `;
+  activatePlayback(event);
 }
 
 function drawSimulationChart(timeSeriesData, burnHoursBeforeTca) {
@@ -2154,6 +2590,7 @@ async function runManeuverSimulation(isAutoSolved = false) {
       }
       
       activeSimulationResult = d;
+      activatePlayback(playbackFocusedConjunction, d);
       drawSimulationChart(d.time_series, d.burn_hours_before_tca);
       drawBPlaneChart(d);
       drawDilutionCurve(d);
@@ -2398,6 +2835,28 @@ function animate() {
   if (!isDragging) {
     targetRotationX += 0.0006;
   }
+
+  // Update timeline playback
+  const nowTime = Date.now();
+  const deltaSec = (nowTime - lastPlaybackFrameTime) / 1000.0;
+  
+  if (isPlaybackPlaying && playbackFocusedConjunction) {
+    playbackTimeOffset += deltaSec * playbackSpeed;
+    
+    const slider = document.getElementById('playback-slider');
+    if (slider) {
+      const minSec = parseFloat(slider.min) * 60;
+      const maxSec = parseFloat(slider.max) * 60;
+      
+      if (playbackTimeOffset > maxSec) {
+        playbackTimeOffset = minSec;
+      }
+      
+      slider.value = (playbackTimeOffset / 60.0).toFixed(2);
+      updatePlaybackHUD();
+    }
+  }
+  lastPlaybackFrameTime = nowTime;
 
   renderOrbit();
   requestAnimationFrame(animate);
