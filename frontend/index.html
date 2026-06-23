@@ -200,6 +200,11 @@
     50% { color: #55efc4; filter: drop-shadow(0 0 6px #55efc4); }
   }
 
+  @media(max-width:900px){
+    #admin-panel > .panel-body { grid-template-columns: 1fr !important; }
+    #admin-panel > .panel-body > div { border-left: none !important; padding-left: 0 !important; border-top: 1px solid var(--border); padding-top: 1rem; }
+  }
+
 </style>
 </head>
 <body>
@@ -676,7 +681,7 @@
         FLIGHT DIRECTOR ADMINISTRATIVE COMMAND DESK
       </span>
     </div>
-    <div class="panel-body" style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 1.5rem; padding: 1.25rem;">
+    <div class="panel-body" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; padding: 1.25rem;">
       
       <!-- Column 1: Operator Role Matrix Directory -->
       <div>
@@ -687,8 +692,36 @@
           <div class="loading">Loading operator directory...</div>
         </div>
       </div>
+
+      <!-- Column 2: Space-Track Connection Credentials Config -->
+      <div style="border-left: 1px solid var(--border); padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
+        <div style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; color: #cbd5e1; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em;">
+          Space-Track Ingest Credentials
+        </div>
+        <span style="font-size: 0.65rem; color: var(--muted); line-height: 1.3;">
+          Configure dynamic Space-Track.org login credentials. DB config overrides local variables in real-time.
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+          <input type="text" id="admin-st-user" placeholder="Username / Email" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-family: inherit; font-size: 0.75rem;">
+          <input type="password" id="admin-st-pass" placeholder="Password" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 0.45rem 0.55rem; font-family: inherit; font-size: 0.75rem;">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <button class="refresh-btn" style="color:var(--accent); border-color:rgba(0, 212, 255, 0.4); padding:0.45rem;" onclick="testSpaceTrackConfig()">
+            Test Connection
+          </button>
+          <button class="refresh-btn" style="color:var(--green); border-color:rgba(16, 185, 129, 0.4); padding:0.45rem;" onclick="saveSpaceTrackConfig()">
+            Save Credentials
+          </button>
+        </div>
+        <button class="refresh-btn" style="color:var(--red); border-color:rgba(244,63,94,0.4); background:rgba(244,63,94,0.02); padding:0.45rem;" onclick="clearSpaceTrackConfig()">
+          Disconnect Space-Track
+        </button>
+        <div id="admin-st-status" style="font-size: 0.68rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.35;">
+          Checking config status...
+        </div>
+      </div>
       
-      <!-- Column 2: System Database Destruction Controls -->
+      <!-- Column 3: System Database Destruction Controls -->
       <div style="border-left: 1px solid var(--border); padding-left: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
         <div style="font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: bold; color: #cbd5e1; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.05em;">
           Database Diagnostic Operations
@@ -1635,6 +1668,7 @@ async function refreshAll() {
   await fetchHistory();
   if (sessionToken && currentUserRole === 'Flight Director') {
     fetchAdminUsersList();
+    loadSpaceTrackConfig();
   }
 }
 
@@ -1734,6 +1768,7 @@ async function verifyLoginCode() {
       
       if (currentUserRole === 'Flight Director') {
         fetchAdminUsersList();
+        loadSpaceTrackConfig();
       }
     } else {
       note.textContent = d.detail || 'Authentication failed.';
@@ -2739,6 +2774,118 @@ async function fetchAdminUsersList() {
     }
   } catch(e) {
     wrap.innerHTML = '<div class="loading">Failed to load user directory.</div>';
+  }
+}
+
+async function loadSpaceTrackConfig() {
+  const statusEl = document.getElementById('admin-st-status');
+  if (!statusEl) return;
+  try {
+    const r = await fetch(`${API}/api/admin/spacetrack/config`, {
+      headers: {'Authorization': `Bearer ${sessionToken}`}
+    });
+    const d = await r.json();
+    if (d.configured) {
+      statusEl.innerHTML = `Status: <span style="color:var(--green); font-weight:bold;">CONFIGURED</span> (User: ${d.username})`;
+      document.getElementById('admin-st-user').value = d.username;
+    } else {
+      statusEl.innerHTML = `Status: <span style="color:var(--red); font-weight:bold;">NOT CONFIGURED</span> (Celestrak fallback active)`;
+    }
+  } catch(e) {
+    statusEl.innerHTML = `Status: <span style="color:var(--muted)">Error loading configuration state</span>`;
+  }
+}
+
+async function saveSpaceTrackConfig() {
+  const username = document.getElementById('admin-st-user').value.trim();
+  const password = document.getElementById('admin-st-pass').value.trim();
+  const statusEl = document.getElementById('admin-st-status');
+  
+  if (!username || !password) {
+    statusEl.innerHTML = `<span style="color:var(--red);">Username and password are required.</span>`;
+    return;
+  }
+  statusEl.innerHTML = `<span style="color:var(--muted);">Saving connection credentials...</span>`;
+  try {
+    const r = await fetch(`${API}/api/admin/spacetrack/config`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({ username, password })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      statusEl.innerHTML = `<span style="color:var(--green); font-weight:bold;">CREDENTIALS SAVED SUCCESSFULLY</span>`;
+      document.getElementById('admin-st-pass').value = ''; // clear password field
+      setTimeout(async () => {
+        await loadSpaceTrackConfig();
+        await fetchStats();
+      }, 1000);
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">${d.detail || 'Failed to save configuration.'}</span>`;
+    }
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:var(--red);">Error saving configuration.</span>`;
+  }
+}
+
+async function clearSpaceTrackConfig() {
+  if (!confirm("Are you sure you want to delete custom Space-Track credentials? The system will fallback to local environment/heuristics.")) return;
+  const statusEl = document.getElementById('admin-st-status');
+  statusEl.innerHTML = `<span style="color:var(--muted);">Clearing credentials...</span>`;
+  try {
+    const r = await fetch(`${API}/api/admin/spacetrack/config`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${sessionToken}`
+      }
+    });
+    const d = await r.json();
+    if (d.ok) {
+      statusEl.innerHTML = `<span style="color:var(--orange); font-weight:bold;">CREDENTIALS WIPED</span>`;
+      document.getElementById('admin-st-user').value = '';
+      document.getElementById('admin-st-pass').value = '';
+      setTimeout(async () => {
+        await loadSpaceTrackConfig();
+        await fetchStats();
+      }, 1000);
+    } else {
+      statusEl.innerHTML = `<span style="color:var(--red);">${d.detail || 'Failed to wipe configuration.'}</span>`;
+    }
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:var(--red);">Error clearing configuration.</span>`;
+  }
+}
+
+async function testSpaceTrackConfig() {
+  const username = document.getElementById('admin-st-user').value.trim();
+  const password = document.getElementById('admin-st-pass').value.trim();
+  const statusEl = document.getElementById('admin-st-status');
+  
+  if (!username || !password) {
+    statusEl.innerHTML = `<span style="color:var(--red);">Username and password required to test connection.</span>`;
+    return;
+  }
+  statusEl.innerHTML = `<span style="color:var(--accent); animation: pulse 1s infinite;">Verifying Space-Track.org connection...</span>`;
+  try {
+    const r = await fetch(`${API}/api/admin/spacetrack/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({ username, password })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      statusEl.innerHTML = `Status: <span style="color:var(--green); font-weight:bold;">CONNECTION VERIFIED (SUCCESS)</span>`;
+    } else {
+      statusEl.innerHTML = `Status: <span style="color:var(--red); font-weight:bold;">VERIFICATION FAILED</span><br><span style="font-size:0.6rem; color:var(--red);">${d.detail}</span>`;
+    }
+  } catch(e) {
+    statusEl.innerHTML = `Status: <span style="color:var(--red); font-weight:bold;">VERIFICATION ERROR (TIMEOUT)</span>`;
   }
 }
 

@@ -114,6 +114,11 @@ class ManeuverSolveRequest(BaseModel):
     limit: int = 80
 
 
+class SpaceTrackConfigRequest(BaseModel):
+    username: str
+    password: str
+
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -168,8 +173,7 @@ def map_celestrak_to_dict(name: str, line1: str, line2: str) -> dict[str, Any]:
 
 
 def fetch_spacetrack_gp(group: str, limit: int) -> list[dict[str, Any]]:
-    user = os.getenv("SPACETRACK_USER")
-    password = os.getenv("SPACETRACK_PASSWORD")
+    user, password = get_spacetrack_credentials()
     if not user or not password:
         raise ValueError("Space-Track credentials not set")
         
@@ -234,8 +238,7 @@ def fetch_telemetry_catalog(group: str = "STATIONS", limit: int = 80) -> tuple[l
     fallback = False
     error_msg = None
     
-    user = os.getenv("SPACETRACK_USER")
-    password = os.getenv("SPACETRACK_PASSWORD")
+    user, password = get_spacetrack_credentials()
     if user and password:
         try:
             catalog = fetch_spacetrack_gp(group, limit)
@@ -630,9 +633,10 @@ def log_conjunction_history(events: list[dict[str, Any]]) -> None:
 
 
 def integration_status() -> dict[str, bool]:
+    user, password = get_spacetrack_credentials()
     return {
         "celestrak": True,
-        "spacetrack": bool(os.getenv("SPACETRACK_USER") and os.getenv("SPACETRACK_PASSWORD")),
+        "spacetrack": bool(user and password),
         "openai": bool(os.getenv("OPENAI_API_KEY")),
         "database": bool(os.getenv("UPSTASH_REDIS_REST_URL") and os.getenv("UPSTASH_REDIS_REST_TOKEN")),
         "email_alerts": bool(os.getenv("RESEND_API_KEY")),
@@ -693,6 +697,16 @@ def store_get(key: str, default: Any = None) -> Any:
         result = response.json().get("result")
         return json.loads(result) if result else default
     return _memory_store.get(key, default)
+
+
+def get_spacetrack_credentials() -> tuple[str | None, str | None]:
+    db_config = store_get("config:spacetrack")
+    if db_config and isinstance(db_config, dict):
+        user = db_config.get("username")
+        password = db_config.get("password")
+        if user and password:
+            return user, password
+    return os.getenv("SPACETRACK_USER"), os.getenv("SPACETRACK_PASSWORD")
 
 
 def get_user_role(email: str) -> str:
@@ -2357,6 +2371,68 @@ def clear_conjunction_history(authorization: str | None = Header(default=None)) 
         _memory_store["history:logged_set"] = set()
     log_operator_action(email, "DB_CLEAR_CONJUNCTIONS", "Flight Director cleared conjunction history tracking log")
     return {"ok": True, "detail": "Conjunction logs successfully cleared"}
+
+
+@app.get("/api/admin/spacetrack/config")
+def get_spacetrack_config(
+    authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    user, password = get_spacetrack_credentials()
+    return {
+        "configured": bool(user and password),
+        "username": user if user else ""
+    }
+
+
+@app.post("/api/admin/spacetrack/config")
+def set_spacetrack_config(
+    payload: SpaceTrackConfigRequest,
+    authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    store_set("config:spacetrack", {
+        "username": payload.username,
+        "password": payload.password
+    })
+    log_operator_action(
+        email, 
+        "CONFIG_SPACETRACK", 
+        f"Updated Space-Track.org credentials config to user '{payload.username}'."
+    )
+    return {"ok": True}
+
+
+@app.delete("/api/admin/spacetrack/config")
+def delete_spacetrack_config(
+    authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    store_set("config:spacetrack", None)
+    log_operator_action(
+        email, 
+        "CONFIG_SPACETRACK", 
+        "Cleared custom Space-Track.org credentials configuration from system storage."
+    )
+    return {"ok": True}
+
+
+@app.post("/api/admin/spacetrack/test")
+def test_spacetrack_config(
+    payload: SpaceTrackConfigRequest,
+    authorization: str | None = Header(default=None)
+) -> dict[str, Any]:
+    email = verify_session_and_role(authorization, ["Flight Director"])
+    login_url = "https://www.space-track.org/ajaxauth/login"
+    try:
+        session = requests.Session()
+        resp = session.post(login_url, data={"identity": payload.username, "password": payload.password}, timeout=10)
+        resp.raise_for_status()
+        if "Failed" in resp.text or "Incorrect" in resp.text:
+            return {"ok": False, "detail": "Space-Track login failed: invalid credentials"}
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "detail": f"Connection error: {str(e)}"}
 
 
 
